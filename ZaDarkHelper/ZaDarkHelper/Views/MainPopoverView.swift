@@ -123,7 +123,16 @@ struct MainPopoverView: View {
         isCheckingForUpdate = true
         checkConfirmation = nil
         Task {
+            // Enforce a minimum 3s loading state so user always sees the
+            // "Đang kiểm tra…" feedback — even when the GitHub API returns
+            // in <100ms (common with warm caches).
+            let minLoadingNs: UInt64 = 3_000_000_000
+            let start = DispatchTime.now()
             await state.checkForHelperUpdate()
+            let elapsedNs = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            if elapsedNs < minLoadingNs {
+                try? await Task.sleep(nanoseconds: minLoadingNs - elapsedNs)
+            }
             isCheckingForUpdate = false
             checkConfirmation = state.helperUpdate == nil ? .upToDate : .updateAvailable
             try? await Task.sleep(nanoseconds: 2_500_000_000)

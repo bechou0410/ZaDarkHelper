@@ -37,18 +37,39 @@ struct StatusHeroCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    // Row 3 — version chip (only when present)
-                    if case .hidden = state.versionChipContent {
-                        EmptyView()
-                    } else {
-                        VersionChip(content: state.versionChipContent)
-                            .padding(.top, 2)
+                    // Row 3 — chip row (ZaDark version + Zalo version side-by-side)
+                    HStack(spacing: 6) {
+                        if case .hidden = state.versionChipContent {
+                            EmptyView()
+                        } else {
+                            VersionChip(content: state.versionChipContent)
+                        }
+                        if let zalo = state.zaloInfo {
+                            zaloVersionChip(zalo)
+                        }
                     }
+                    .padding(.top, 2)
                 }
             }
             .padding(DesignTokens.heroPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Small static chip showing Zalo's version alongside ZaDark's in the hero row.
+    /// Rendered in blue tint so it reads as a context marker, not an action.
+    private func zaloVersionChip(_ zalo: ZaloInfo) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "message.fill")
+                .font(.system(size: 9, weight: .semibold))
+            Text("Zalo v\(zalo.shortVersion)")
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(Color.blue.opacity(0.12)))
+        .overlay(Capsule().stroke(Color.blue.opacity(0.28), lineWidth: 0.5))
+        .foregroundStyle(Color.blue)
     }
 
     // MARK: - Copy

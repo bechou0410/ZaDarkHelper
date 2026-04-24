@@ -29,6 +29,19 @@ struct MainPopoverView: View {
                 }
             }
         }
+        // Mirror background-detected helper updates into the same card the
+        // manual check uses, so there's one consistent surface.
+        .onChange(of: state.helperUpdate) { _, new in
+            if let release = new {
+                if updateCheckPhase == nil {
+                    updateCheckPhase = .updateAvailable(release: release)
+                }
+            } else {
+                if case .updateAvailable = updateCheckPhase {
+                    updateCheckPhase = nil
+                }
+            }
+        }
     }
 
     private var mainContent: some View {
@@ -39,10 +52,9 @@ struct MainPopoverView: View {
                 OnboardingBannerView()
             }
 
-            HelperUpdateBannerView()
-
-            // Main status area: UpdateCheckCard takes over when user actively
-            // checked for an update; otherwise the normal StatusHeroCard + action.
+            // Main status area: UpdateCheckCard takes over whenever a helper
+            // update is detected (manual check OR background). Single source
+            // of truth — no separate banner to duplicate the Tải button.
             if let phase = updateCheckPhase {
                 UpdateCheckCard(phase: phase, onDismiss: { updateCheckPhase = nil })
             } else {

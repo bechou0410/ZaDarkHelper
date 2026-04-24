@@ -18,9 +18,8 @@ struct VersionChip: View {
             EmptyView()
         case .upToDate(let v):
             pill(tint: .green) {
-                // seal-fill matches hero card's .installed icon + header button
-                // up-to-date icon — single visual language for "all good".
-                Image(systemName: "checkmark.seal.fill").font(.system(size: 10, weight: .semibold))
+                // Plain checkmark for chip — seal.fill reserved for hero card.
+                Image(systemName: "checkmark").font(.system(size: 9, weight: .semibold))
                 Text("ZaDark v\(v)").font(.system(size: 10.5, weight: .medium, design: .monospaced))
             }
 

@@ -63,9 +63,24 @@ enum GitHubReleaseChecker {
     // MARK: - Internals
 
     private static func fetchLatest() async throws -> Release {
-        // Cache-bust query param so GitHub's edge CDN doesn't hand us a stale
-        // copy. Without this, a freshly-published release can take minutes to
-        // appear via `releases/latest`.
+        // Try JSON API first (richer: has DMG asset URL for auto-update).
+        // If rate-limited (60 req/h anonymous), fall back to Atom feed which
+        // has no API rate limit — we lose DMG asset info but still detect new
+        // versions so banner can show "Tải thủ công" (opens browser).
+        do {
+            return try await fetchJSON()
+        } catch GitHubError.rateLimited {
+            return try await fetchAtom()
+        }
+    }
+
+    enum GitHubError: Error {
+        case rateLimited
+        case httpError(Int)
+        case decodeError
+    }
+
+    private static func fetchJSON() async throws -> Release {
         let cacheBust = Int(Date().timeIntervalSince1970)
         let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases/latest?_=\(cacheBust)")!
         var req = URLRequest(url: url)
@@ -73,21 +88,19 @@ enum GitHubReleaseChecker {
         req.setValue("ZaDarkHelper", forHTTPHeaderField: "User-Agent")
         req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         req.setValue("no-cache", forHTTPHeaderField: "Pragma")
-        // Ignore the local URLSession cache too — user clicked a manual refresh,
-        // they want a real hit. Periodic checks also benefit.
         req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         req.timeoutInterval = 10
 
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "GitHub", code: -1)
+            throw GitHubError.httpError(-1)
+        }
+        if http.statusCode == 403 {
+            // GitHub API rate limit — surface for fallback path.
+            throw GitHubError.rateLimited
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw NSError(
-                domain: "GitHub",
-                code: http.statusCode,
-                userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"]
-            )
+            throw GitHubError.httpError(http.statusCode)
         }
 
         let decoder = JSONDecoder()
@@ -108,6 +121,59 @@ enum GitHubReleaseChecker {
             body: payload.body ?? "",
             assets: assets
         )
+    }
+
+    /// Atom feed fallback — public RSS endpoint with NO rate limit.
+    /// Gives us tag name + release page URL, but not DMG assets. Banner falls
+    /// back to "Tải thủ công" (opens browser) when this path is used.
+    private static func fetchAtom() async throws -> Release {
+        let cacheBust = Int(Date().timeIntervalSince1970)
+        let url = URL(string: "https://github.com/\(owner)/\(repo)/releases.atom?_=\(cacheBust)")!
+        var req = URLRequest(url: url)
+        req.setValue("ZaDarkHelper", forHTTPHeaderField: "User-Agent")
+        req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        req.timeoutInterval = 10
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            throw GitHubError.httpError((response as? HTTPURLResponse)?.statusCode ?? -1)
+        }
+        guard let xml = String(data: data, encoding: .utf8) else {
+            throw GitHubError.decodeError
+        }
+
+        // Minimal XML parse — find first <entry> then extract tag + URL.
+        // Avoids pulling in XMLParser for just 2 fields.
+        // Tag name lives as the suffix of the entry link: /releases/tag/vX.Y.Z
+        guard let linkHref = matchFirst(#"<link rel="alternate"[^>]*href="([^"]+)""#, in: xml)
+                ?? matchFirst(#"<link href="([^"]+/releases/tag/[^"]+)""#, in: xml),
+              let linkURL = URL(string: linkHref),
+              linkHref.contains("/releases/tag/") else {
+            throw GitHubError.decodeError
+        }
+        let tag = linkHref.components(separatedBy: "/releases/tag/").last ?? "?"
+        let title = matchFirst(#"<title>([^<]+)</title>"#, in: xml.components(separatedBy: "<entry>").dropFirst().first ?? "")
+            ?? tag
+
+        return Release(
+            tagName: tag,
+            name: title,
+            htmlURL: linkURL,
+            publishedAt: nil,
+            body: "",
+            assets: []
+        )
+    }
+
+    private static func matchFirst(_ pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              m.numberOfRanges > 1,
+              let range = Range(m.range(at: 1), in: text) else {
+            return nil
+        }
+        return String(text[range])
     }
 
     /// Naive but correct for our purposes: split by dots, pad, numeric compare.

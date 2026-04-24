@@ -109,9 +109,10 @@ struct MainPopoverView: View {
 
     private func iconName(for status: CheckConfirmation) -> String {
         switch status {
-        // Same seal-fill as hero card's .installed status — visual consistency
-        // across surfaces that mean "everything's fine, up to date".
-        case .upToDate: return "checkmark.seal.fill"
+        // Simple circle check for the header button — reserve seal.fill for
+        // the hero card's "đang hoạt động" / "đã mới nhất" states where it
+        // carries more visual weight.
+        case .upToDate: return "checkmark.circle.fill"
         case .updateAvailable: return "arrow.up.circle.fill"
         case .failed: return "exclamationmark.triangle.fill"
         }

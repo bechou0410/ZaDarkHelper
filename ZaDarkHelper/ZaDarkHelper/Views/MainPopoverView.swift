@@ -68,8 +68,6 @@ struct MainPopoverView: View {
             FooterStrip()
         }
         .padding(DesignTokens.horizontalPadding)   // symmetric on all 4 edges
-        // Kill all SwiftUI implicit animations — popover/content snap instantly.
-        .transaction { $0.animation = nil }
     }
 
     private var header: some View {

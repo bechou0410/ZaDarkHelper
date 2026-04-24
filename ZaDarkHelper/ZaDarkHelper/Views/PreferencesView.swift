@@ -10,8 +10,20 @@ struct PreferencesView: View {
     @State private var expanded = false
     @State private var showUninstallConfirm = false
 
+    /// v0.36 animation state: easeInOut 0.35s on binding setter.
+    private var expandedBinding: Binding<Bool> {
+        Binding(
+            get: { expanded },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    expanded = newValue
+                }
+            }
+        )
+    }
+
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
+        DisclosureGroup(isExpanded: expandedBinding) {
             VStack(alignment: .leading, spacing: 2) {
                 toggleRow(
                     title: "Chạy cùng macOS khi đăng nhập",
@@ -67,10 +79,6 @@ struct PreferencesView: View {
             Label("Tuỳ chọn", systemImage: "slider.horizontal.3")
                 .font(.subheadline.weight(.medium))
         }
-        // Kill DisclosureGroup's internal expand animation — parent .transaction
-        // only covers the VStack layout, the disclosure's own slide-in of its
-        // content bypassed that. Local transaction here catches it.
-        .transaction { $0.animation = nil }
         .alert("Gỡ cài đặt ZaDark?", isPresented: $showUninstallConfirm) {
             Button("Huỷ", role: .cancel) { }
             Button("Gỡ cài đặt", role: .destructive) {

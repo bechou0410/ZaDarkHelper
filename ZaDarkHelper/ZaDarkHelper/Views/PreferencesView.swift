@@ -1,78 +1,64 @@
 import SwiftUI
 
-/// Settings menu rendered inline inside the main popover — no card, no backdrop,
-/// just a clear header label + toggle rows so it reads as part of the panel.
+/// Settings menu as a `DisclosureGroup` — mirrors the log drawer's
+/// "> Nhật ký" pattern so the whole popover reads as one consistent menu.
+/// No custom animation needed; DisclosureGroup handles the expand/collapse
+/// transition natively, which also gives correct popover resize behavior.
 struct PreferencesView: View {
     @Environment(AppState.self) private var state
-    @Binding var isPresented: Bool
     var onReplayOnboarding: (() -> Void)?
+    @State private var expanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            header
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 2) {
+                toggleRow(
+                    title: "Chạy cùng macOS khi đăng nhập",
+                    systemImage: "power",
+                    isOn: launchAtLoginBinding
+                )
+                toggleRow(
+                    title: "Tự động áp lại khi Zalo cập nhật",
+                    systemImage: "arrow.clockwise",
+                    isOn: autoRePatchBinding
+                )
+                toggleRow(
+                    title: "Thông báo khi ZaDark có bản mới",
+                    systemImage: "bell.fill",
+                    isOn: notifyBinding
+                )
+                toggleRow(
+                    title: "Tự động thoát Zalo khi áp lại",
+                    subtitle: "có thể mất phiên chat đang mở",
+                    systemImage: "xmark.circle",
+                    isOn: forceQuitBinding,
+                    destructive: true
+                )
 
-            // Toggles write through to persisted prefs on every change.
-            toggleRow(
-                title: "Chạy cùng macOS khi đăng nhập",
-                systemImage: "power",
-                isOn: launchAtLoginBinding
-            )
-            toggleRow(
-                title: "Tự động áp lại khi Zalo cập nhật",
-                systemImage: "arrow.clockwise",
-                isOn: autoRePatchBinding
-            )
-            toggleRow(
-                title: "Thông báo khi ZaDark có bản mới",
-                systemImage: "bell.fill",
-                isOn: notifyBinding
-            )
-            toggleRow(
-                title: "Tự động thoát Zalo khi áp lại",
-                subtitle: "có thể mất phiên chat đang mở",
-                systemImage: "xmark.circle",
-                isOn: forceQuitBinding,
-                destructive: true
-            )
-
-            if let onReplayOnboarding {
-                Divider()
-                    .padding(.vertical, 4)
-
-                menuButton(
-                    title: "Xem lại hướng dẫn",
-                    systemImage: "questionmark.circle"
-                ) {
-                    var prefs = state.preferences
-                    prefs.hasCompletedOnboarding = false
-                    state.updatePreferences(prefs)
-                    onReplayOnboarding()
+                if let onReplayOnboarding {
+                    Divider()
+                        .padding(.vertical, 2)
+                    menuButton(
+                        title: "Xem lại hướng dẫn",
+                        systemImage: "questionmark.circle"
+                    ) {
+                        var prefs = state.preferences
+                        prefs.hasCompletedOnboarding = false
+                        state.updatePreferences(prefs)
+                        onReplayOnboarding()
+                    }
                 }
             }
-        }
-    }
-
-    // MARK: - Sections
-
-    private var header: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "slider.horizontal.3")
-                .foregroundStyle(.secondary)
+            .padding(.top, 6)
+        } label: {
+            Label("Tuỳ chọn", systemImage: "slider.horizontal.3")
                 .font(.caption)
-            Text("Tuỳ chọn")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.8)
-            Spacer()
         }
-        .padding(.bottom, 4)
     }
 
-    // MARK: - Menu rows
+    // MARK: - Row builders
 
-    /// Compact toggle row with leading icon + title (+ optional subtitle).
-    /// Tappable everywhere on the row, not just on the switch.
+    /// Toggle row — leading icon + title (+ optional subtitle) + trailing switch.
     @ViewBuilder
     private func toggleRow(
         title: String,
@@ -105,7 +91,7 @@ struct PreferencesView: View {
         .padding(.vertical, 2)
     }
 
-    /// Regular tappable menu item (icon + title, no switch).
+    /// Regular button row (icon + title + chevron).
     @ViewBuilder
     private func menuButton(
         title: String,

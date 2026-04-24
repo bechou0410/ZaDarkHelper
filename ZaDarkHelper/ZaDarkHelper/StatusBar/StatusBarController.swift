@@ -122,16 +122,6 @@ final class StatusBarController: NSObject {
     private func showContextMenu() {
         let menu = NSMenu()
 
-        let check = NSMenuItem(
-            title: "Kiểm tra cập nhật",
-            action: #selector(checkForUpdates),
-            keyEquivalent: ""
-        )
-        check.target = self
-        menu.addItem(check)
-
-        menu.addItem(.separator())
-
         let about = NSMenuItem(
             title: "Về ZaDarkHelper v\(GitHubReleaseChecker.currentHelperVersion())",
             action: nil,
@@ -157,26 +147,6 @@ final class StatusBarController: NSObject {
     }
 
     // MARK: - Menu actions
-
-    @objc private func checkForUpdates() {
-        Task { @MainActor in
-            appState.appendSystemLog("Kiểm tra cập nhật (thủ công)…")
-            await appState.checkForHelperUpdate()
-
-            if let latest = appState.helperUpdate {
-                // Open popover so user sees the banner immediately.
-                if !popover.isShown { togglePopover() }
-                appState.appendSystemLog("Có bản \(latest.tagName) — xem banner trong popover.")
-            } else {
-                // No update — notify briefly.
-                let alert = NSAlert()
-                alert.messageText = "ZaDarkHelper đã mới nhất"
-                alert.informativeText = "Phiên bản đang dùng: v\(GitHubReleaseChecker.currentHelperVersion())"
-                alert.alertStyle = .informational
-                alert.runModal()
-            }
-        }
-    }
 
     @objc private func quit() {
         NSApp.terminate(nil)

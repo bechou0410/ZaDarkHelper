@@ -43,6 +43,12 @@ final class AppState {
     var lastUpdateCheck: Date?
     /// Latest helper release from GitHub if newer than current. Nil when up-to-date or unchecked.
     var helperUpdate: GitHubReleaseChecker.Release?
+
+    /// Invoked when AppState wants the UI to surface itself (popover opens).
+    /// Set by `StatusBarController` at init. Fires on:
+    ///   • newly detected helper update
+    ///   • Zalo drift detected and user hasn't opted into auto re-patch
+    var onRequestSurface: (@Sendable () -> Void)?
     var isBusy: Bool { if case .working = status { return true } else { return false } }
     var toastMessage: String?
 
@@ -177,10 +183,14 @@ final class AppState {
 
         // Broken state takes precedence over everything else — user MUST repair before Zalo launches.
         if isZaloBroken {
+            let wasAlreadyBroken: Bool
+            if case .broken = status { wasAlreadyBroken = true } else { wasAlreadyBroken = false }
             status = .broken
             hasBackup = true
             zaloInfo = ZaloVersionProbe.read()
             installedZaDarkVersion = try? await brew.installedVersion(of: "zadark")
+            // Newly broken → surface popover so user sees the Repair button immediately.
+            if !wasAlreadyBroken { onRequestSurface?() }
             return
         }
 
@@ -385,10 +395,14 @@ final class AppState {
                     } catch {
                         self.appendSystemLog("Auto re-patch lỗi: \(error)")
                         await self.refresh()
+                        // Failed auto-repatch needs user attention → surface popover.
+                        self.onRequestSurface?()
                     }
                 }
             } else {
+                // User opted out of auto re-patch → show popover so they can click manually.
                 Task { await refresh() }
+                onRequestSurface?()
             }
         }
     }
@@ -423,11 +437,15 @@ final class AppState {
         case .updateAvailable(_, let latest):
             let previous = helperUpdate?.tagName
             helperUpdate = latest
-            if previous != latest.tagName, preferences.notifyOnZaDarkUpdate {
-                await NotificationService.post(
-                    title: "ZaDarkHelper có bản mới \(latest.tagName)",
-                    body: "Mở trang Releases để tải bản mới."
-                )
+            if previous != latest.tagName {
+                if preferences.notifyOnZaDarkUpdate {
+                    await NotificationService.post(
+                        title: "ZaDarkHelper có bản mới \(latest.tagName)",
+                        body: "Mở popover để cập nhật một click."
+                    )
+                }
+                // Newly seen version → auto-open popover so the banner is visible.
+                onRequestSurface?()
             }
         case .failed(let err):
             appendSystemLog("Helper update check lỗi: \(err.localizedDescription)")

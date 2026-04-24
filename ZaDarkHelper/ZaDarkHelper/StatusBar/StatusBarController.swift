@@ -44,6 +44,20 @@ final class StatusBarController: NSObject {
 
         configureButton()
         observeIconChanges()
+
+        // AppState asks the UI to surface itself when stale state or a new
+        // helper release is detected. Open the popover programmatically so the
+        // banner is immediately visible — user doesn't have to click.
+        appState.onRequestSurface = { [weak self] in
+            Task { @MainActor in self?.surfacePopover() }
+        }
+    }
+
+    /// Opens popover if not already shown, used by AppState to get attention.
+    @MainActor
+    func surfacePopover() {
+        guard !popover.isShown else { return }
+        togglePopover()
     }
 
     // MARK: - Button setup

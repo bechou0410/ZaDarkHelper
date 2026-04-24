@@ -47,18 +47,17 @@ struct LogSessionRow: View {
                 .foregroundStyle(statusTint)
                 .font(.caption)
 
-            // Verb in terminal-cyan accent — mimics shell prompt coloring.
             Text(session.verb)
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(Self.accentCyan)
 
             Text(Self.timeFormatter.string(from: session.startedAt))
-                .font(.caption.monospacedDigit())
+                .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(Self.dimGray)
 
             if let d = session.duration {
                 Text(String(format: "%.1fs", d))
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(Self.dimGray)
             } else if !session.isFinished {
                 ProgressView().controlSize(.mini)
@@ -67,7 +66,7 @@ struct LogSessionRow: View {
             Spacer(minLength: 6)
 
             Text("\(session.lines.count)")
-                .font(.caption.monospacedDigit())
+                .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(Self.dimGray)
         }
     }

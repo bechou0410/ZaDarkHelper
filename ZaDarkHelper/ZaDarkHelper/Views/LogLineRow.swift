@@ -10,15 +10,15 @@ struct LogLineRow: View {
     let line: LogLine
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
+        HStack(alignment: .top, spacing: 5) {
             Text(timeString)
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: 9.5, design: .monospaced))
                 .foregroundStyle(Self.timestampColor)
             Text(line.stream == .stderr ? "ERR" : "OUT")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                 .foregroundStyle(line.stream == .stderr ? Self.errColor : Self.outColor)
             Text(line.text)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 10.5, design: .monospaced))
                 .foregroundStyle(line.stream == .stderr ? Self.errColor : Self.stdoutColor)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)

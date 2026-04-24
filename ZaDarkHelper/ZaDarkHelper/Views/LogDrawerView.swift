@@ -63,7 +63,8 @@ struct LogDrawerView: View {
     private var terminalFrame: some View {
         ZStack(alignment: .bottomTrailing) {
             // ScrollView fills the entire frame, clips overflow naturally.
-            ScrollView {
+            // Hide indicator — terminal aesthetic; user can scroll via trackpad.
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     let sessions = state.sessionsForDisplay
                     if sessions.isEmpty {

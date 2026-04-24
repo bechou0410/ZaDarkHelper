@@ -7,13 +7,13 @@ struct LogLineRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             Text(timeString)
-                .font(.system(size: 10, design: .monospaced))
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.tertiary)
             Text(line.stream == .stderr ? "ERR" : "OUT")
-                .font(.system(size: 10, design: .monospaced))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(line.stream == .stderr ? .red : .secondary)
             Text(line.text)
-                .font(.system(size: 10.5, design: .monospaced))
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(line.stream == .stderr ? .red : .primary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)

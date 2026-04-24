@@ -52,7 +52,7 @@ struct PreferencesView: View {
             .padding(.top, 6)
         } label: {
             Label("Tuỳ chọn", systemImage: "slider.horizontal.3")
-                .font(.caption)
+                .font(.subheadline.weight(.medium))
         }
     }
 
@@ -68,18 +68,18 @@ struct PreferencesView: View {
         destructive: Bool = false
     ) -> some View {
         Toggle(isOn: isOn) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: systemImage)
-                    .font(.caption)
-                    .frame(width: 16)
+                    .font(.callout)
+                    .frame(width: 18)
                     .foregroundStyle(destructive ? .red : .primary)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(destructive ? .red : .primary)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -87,8 +87,8 @@ struct PreferencesView: View {
             }
         }
         .toggleStyle(.switch)
-        .controlSize(.mini)
-        .padding(.vertical, 2)
+        .controlSize(.small)
+        .padding(.vertical, 3)
     }
 
     /// Regular button row (icon + title + chevron).
@@ -99,20 +99,20 @@ struct PreferencesView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: systemImage)
-                    .font(.caption)
-                    .frame(width: 16)
-                Text(title).font(.caption)
+                    .font(.callout)
+                    .frame(width: 18)
+                Text(title).font(.callout)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
     }
 
     // MARK: - Bindings (write-through to AppState)

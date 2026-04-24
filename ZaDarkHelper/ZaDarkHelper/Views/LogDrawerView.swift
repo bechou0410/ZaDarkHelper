@@ -27,8 +27,9 @@ struct LogDrawerView: View {
             Text("Nhật ký")
             Text("(\(state.sessions.count + (state.currentSession == nil ? 0 : 1)) phiên)")
                 .foregroundStyle(.secondary)
+                .font(.caption)
         }
-        .font(.caption)
+        .font(.subheadline.weight(.medium))
     }
 
     private var filterRow: some View {
@@ -36,13 +37,13 @@ struct LogDrawerView: View {
         return HStack(spacing: 10) {
             Toggle("stdout", isOn: $state.showStdout)
                 .toggleStyle(.switch)
-                .controlSize(.mini)
+                .controlSize(.small)
             Toggle("stderr", isOn: $state.showStderr)
                 .toggleStyle(.switch)
-                .controlSize(.mini)
+                .controlSize(.small)
             Spacer()
         }
-        .font(.caption)
+        .font(.callout)
     }
 
     private var sessionList: some View {
@@ -51,7 +52,7 @@ struct LogDrawerView: View {
                 let sessions = state.sessionsForDisplay
                 if sessions.isEmpty {
                     Text("Chưa có nhật ký. Bấm một hành động ở trên để bắt đầu.")
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 8)
                 } else {

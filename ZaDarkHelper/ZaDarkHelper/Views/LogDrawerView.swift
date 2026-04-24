@@ -69,7 +69,7 @@ struct LogDrawerView: View {
             }
             .padding(8)
         }
-        .frame(maxHeight: 200)
+        .frame(height: 200)   // fixed — scrolls internally, doesn't stretch panel
         // Terminal-style dark backdrop so monospaced log text reads like a
         // real shell transcript. Fixed near-black independent of system theme.
         .background(Color(red: 0.07, green: 0.07, blue: 0.09))

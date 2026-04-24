@@ -521,9 +521,9 @@ final class AppState {
                 currentSession?.lines.removeFirst(count - maxLogLines)
             }
         } else {
-            // No active action — park under a "Nền" (background) session so watcher events still show.
-            if sessions.last?.verb != "Nền" || sessions.last?.isFinished == true {
-                var bg = LogSession(verb: "Nền", startedAt: .now, endedAt: nil, finalStatus: nil, lines: [])
+            // No active action — park under a "Logs" (background) session so watcher events still show.
+            if sessions.last?.verb != "Logs" || sessions.last?.isFinished == true {
+                var bg = LogSession(verb: "Logs", startedAt: .now, endedAt: nil, finalStatus: nil, lines: [])
                 bg.lines.append(entry)
                 sessions.append(bg)
             } else {

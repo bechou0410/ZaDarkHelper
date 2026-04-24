@@ -39,6 +39,12 @@ struct MainPopoverView: View {
 
             HelperUpdateBannerView()
 
+            // Settings panel slot — one view visible at a time.
+            // Animation design: symmetric scale + opacity + subtle blur using a
+            // spring curve. Scale anchored to the top so the content feels
+            // anchored to the gear button (not floating from center).
+            // Spring response (~0.3s) matches NSPopover's internal resize
+            // animation so content + frame move together → single smooth gesture.
             Group {
                 if showPreferences {
                     PreferencesView(
@@ -57,19 +63,16 @@ struct MainPopoverView: View {
                         RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
                             .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
                     )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity
-                    ))
+                    .transition(panelTransition)
                 } else {
                     VStack(spacing: DesignTokens.sectionSpacing) {
                         StatusHeroCard()
                         ActionPillButton()
                     }
-                    .transition(.opacity)
+                    .transition(panelTransition)
                 }
             }
-            .animation(.easeInOut(duration: 0.22), value: showPreferences)
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showPreferences)
 
             secondaryRow
 
@@ -81,6 +84,17 @@ struct MainPopoverView: View {
         }
         .padding(.horizontal, DesignTokens.horizontalPadding)
         .padding(.vertical, DesignTokens.sectionSpacing)
+    }
+
+    /// Symmetric transition for the settings slot.
+    /// Combines scale-from-top (0.94 → 1.0) with opacity + a tiny blur.
+    /// Scale anchor = top because both the gear button trigger and the content
+    /// above are at the top of the popover — animating from there feels more
+    /// physical than floating from the center.
+    private var panelTransition: AnyTransition {
+        .scale(scale: 0.94, anchor: .top)
+            .combined(with: .opacity)
+            .combined(with: .blur)
     }
 
     private var header: some View {

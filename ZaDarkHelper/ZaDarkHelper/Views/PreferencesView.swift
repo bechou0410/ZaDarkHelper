@@ -10,22 +10,8 @@ struct PreferencesView: View {
     @State private var expanded = false
     @State private var showUninstallConfirm = false
 
-    /// Custom binding that wraps writes in a smooth easeInOut animation.
-    /// Popover + parent VStack re-layout with the same timing so expand/collapse
-    /// looks gradual instead of snapping.
-    private var expandedBinding: Binding<Bool> {
-        Binding(
-            get: { expanded },
-            set: { newValue in
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    expanded = newValue
-                }
-            }
-        )
-    }
-
     var body: some View {
-        DisclosureGroup(isExpanded: expandedBinding) {
+        DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 2) {
                 toggleRow(
                     title: "Chạy cùng macOS khi đăng nhập",

@@ -6,22 +6,10 @@ struct LogDrawerView: View {
     @Environment(AppState.self) private var state
     @State private var expanded = false
 
-    /// Writes wrapped in a gradual easeInOut animation for smooth expand/collapse.
-    private var expandedBinding: Binding<Bool> {
-        Binding(
-            get: { expanded },
-            set: { newValue in
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    expanded = newValue
-                }
-            }
-        )
-    }
-
     var body: some View {
         @Bindable var state = state
 
-        DisclosureGroup(isExpanded: expandedBinding) {
+        DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 6) {
                 filterRow
                 sessionList

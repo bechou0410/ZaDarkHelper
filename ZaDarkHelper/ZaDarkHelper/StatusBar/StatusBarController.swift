@@ -20,13 +20,13 @@ final class StatusBarController: NSObject {
         self.appState = appState
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        // NSPopover animates=true — SwiftUI drives the expand/collapse via
-        // withAnimation(.easeInOut) on disclosure bindings, and the popover
-        // frame follows that SwiftUI-tracked content size for a coherent
-        // gradual transition.
+        // NSPopover animates=false — everything snaps instantly. SwiftUI
+        // DisclosureGroups also render without animation (plain bindings),
+        // so log-drawer backdrop artifacts and parent-panel jitter stay
+        // absent during expand/collapse.
         self.popover = NSPopover()
         self.popover.behavior = .transient
-        self.popover.animates = true
+        self.popover.animates = false
 
         // IMPORTANT: use .preferredContentSize so NSHostingController tracks
         // SwiftUI layout changes and updates popover size automatically.

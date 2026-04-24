@@ -68,6 +68,10 @@ struct MainPopoverView: View {
             FooterStrip()
         }
         .padding(DesignTokens.horizontalPadding)   // symmetric on all 4 edges
+        // Kill all SwiftUI implicit animations so DisclosureGroup expand/
+        // collapse doesn't animate the parent VStack layout — header + hero
+        // + log drawer backdrop stay pixel-locked in place.
+        .transaction { $0.animation = nil }
     }
 
     private var header: some View {

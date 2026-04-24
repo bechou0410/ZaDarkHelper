@@ -24,9 +24,16 @@ final class StatusBarController: NSObject {
         self.popover = NSPopover()
         self.popover.behavior = .transient
         self.popover.animates = true
-        self.popover.contentViewController = NSHostingController(
+
+        // IMPORTANT: use .preferredContentSize so NSHostingController tracks
+        // SwiftUI layout changes and updates popover size automatically.
+        // Without this, toggling the inline settings panel (expand/collapse)
+        // leaves the popover stuck at the largest height it ever rendered.
+        let host = NSHostingController(
             rootView: MainPopoverView().environment(appState)
         )
+        host.sizingOptions = [.preferredContentSize]
+        self.popover.contentViewController = host
 
         super.init()
 

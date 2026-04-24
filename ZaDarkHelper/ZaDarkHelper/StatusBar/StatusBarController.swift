@@ -20,12 +20,10 @@ final class StatusBarController: NSObject {
         self.appState = appState
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        // SwiftUI popover — NSPopover with animates=true auto-interpolates
-        // contentSize changes. Smooth resize on settings toggle comes from a
-        // combination of:
-        //   1. animates = true (NSPopover frame interpolation)
-        //   2. SwiftUI .transition()/.animation() in MainPopoverView for
-        //      content crossfade/slide as size changes
+        // NSPopover with default animates=true — handles its own frame
+        // interpolation when NSHostingController reports a new content size
+        // (e.g. DisclosureGroup expand/collapse). No custom animations on
+        // the SwiftUI side — everything uses stock SwiftUI/AppKit defaults.
         self.popover = NSPopover()
         self.popover.behavior = .transient
         self.popover.animates = true

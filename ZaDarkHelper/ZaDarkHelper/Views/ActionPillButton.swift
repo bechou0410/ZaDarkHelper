@@ -3,7 +3,6 @@ import SwiftUI
 /// Large capsule-shaped primary button. Action and label derived from current state.
 struct ActionPillButton: View {
     @Environment(AppState.self) private var state
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {

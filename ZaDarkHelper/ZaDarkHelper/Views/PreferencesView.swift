@@ -1,40 +1,53 @@
 import SwiftUI
 
-/// Inline settings panel. Presented inside the main popover (not a sheet)
-/// so focus stays with MenuBarExtra and toggles don't dismiss the popover.
+/// Settings menu rendered inline inside the main popover — no card, no backdrop,
+/// just a clear header label + toggle rows so it reads as part of the panel.
 struct PreferencesView: View {
     @Environment(AppState.self) private var state
     @Binding var isPresented: Bool
     var onReplayOnboarding: (() -> Void)?
 
     var body: some View {
-        @Bindable var state = state
-
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             header
 
-            // Bind directly to `state.preferences` so toggles write through to
-            // persisted storage on every change (no "save" button needed, and
-            // the popover never loses focus from a sheet dismissal).
-            Toggle("Chạy cùng macOS khi đăng nhập", isOn: launchAtLoginBinding)
-            Toggle("Tự động áp lại khi Zalo cập nhật", isOn: autoRePatchBinding)
-            Toggle("Thông báo khi ZaDark có bản mới", isOn: notifyBinding)
-            Toggle("Tự động thoát Zalo khi áp lại (có thể mất phiên chat)", isOn: forceQuitBinding)
-                .foregroundStyle(.red)
+            // Toggles write through to persisted prefs on every change.
+            toggleRow(
+                title: "Chạy cùng macOS khi đăng nhập",
+                systemImage: "power",
+                isOn: launchAtLoginBinding
+            )
+            toggleRow(
+                title: "Tự động áp lại khi Zalo cập nhật",
+                systemImage: "arrow.clockwise",
+                isOn: autoRePatchBinding
+            )
+            toggleRow(
+                title: "Thông báo khi ZaDark có bản mới",
+                systemImage: "bell.fill",
+                isOn: notifyBinding
+            )
+            toggleRow(
+                title: "Tự động thoát Zalo khi áp lại",
+                subtitle: "có thể mất phiên chat đang mở",
+                systemImage: "xmark.circle",
+                isOn: forceQuitBinding,
+                destructive: true
+            )
 
             if let onReplayOnboarding {
                 Divider()
-                Button {
+                    .padding(.vertical, 4)
+
+                menuButton(
+                    title: "Xem lại hướng dẫn",
+                    systemImage: "questionmark.circle"
+                ) {
                     var prefs = state.preferences
                     prefs.hasCompletedOnboarding = false
                     state.updatePreferences(prefs)
                     onReplayOnboarding()
-                } label: {
-                    Label("Xem lại hướng dẫn", systemImage: "questionmark.circle")
-                        .font(.caption)
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
             }
         }
     }
@@ -43,21 +56,77 @@ struct PreferencesView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Image(systemName: "gearshape.fill")
+            Image(systemName: "slider.horizontal.3")
                 .foregroundStyle(.secondary)
+                .font(.caption)
             Text("Tuỳ chọn")
-                .font(.subheadline.weight(.semibold))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.8)
             Spacer()
-            Button {
-                isPresented = false
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-            }
-            .buttonStyle(.borderless)
-            .help("Đóng tuỳ chọn")
         }
+        .padding(.bottom, 4)
+    }
+
+    // MARK: - Menu rows
+
+    /// Compact toggle row with leading icon + title (+ optional subtitle).
+    /// Tappable everywhere on the row, not just on the switch.
+    @ViewBuilder
+    private func toggleRow(
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String,
+        isOn: Binding<Bool>,
+        destructive: Bool = false
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.caption)
+                    .frame(width: 16)
+                    .foregroundStyle(destructive ? .red : .primary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(destructive ? .red : .primary)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 4)
+            }
+        }
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+        .padding(.vertical, 2)
+    }
+
+    /// Regular tappable menu item (icon + title, no switch).
+    @ViewBuilder
+    private func menuButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.caption)
+                    .frame(width: 16)
+                Text(title).font(.caption)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 2)
     }
 
     // MARK: - Bindings (write-through to AppState)

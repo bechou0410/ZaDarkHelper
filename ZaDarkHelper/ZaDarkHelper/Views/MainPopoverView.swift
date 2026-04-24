@@ -39,10 +39,14 @@ struct MainPopoverView: View {
 
             HelperUpdateBannerView()
 
-            // Settings drops down from the header (dropdown-menu feel). Hero
-            // card + action button stay visible underneath and get pushed
-            // down smoothly as popover grows. On close, settings slides back
-            // up into the header edge and the space collapses.
+            StatusHeroCard()
+            ActionPillButton()
+
+            // Settings appears as an inline menu section (no card backdrop),
+            // reads as part of the main panel — like a native macOS menu group.
+            // "TUỲ CHỌN" uppercased header separates it from the action block
+            // above. Slides in/out below the primary action so users naturally
+            // find it after interacting with the main CTA.
             if showPreferences {
                 PreferencesView(
                     isPresented: $showPreferences,
@@ -51,23 +55,8 @@ struct MainPopoverView: View {
                         showOnboarding = true
                     }
                 )
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
-                        .fill(.thinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
-                )
-                // clipped keeps sliding content from overflowing outside the
-                // rounded card during the drop animation.
-                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous))
                 .transition(dropdownTransition)
             }
-
-            StatusHeroCard()
-            ActionPillButton()
 
             secondaryRow
 

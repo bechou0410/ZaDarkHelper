@@ -58,10 +58,11 @@ struct LogDrawerView: View {
     }
 
     /// Full-width terminal frame containing the scrollable session list +
-    /// an in-frame clear button at the top-right. Forced dark colorScheme so
-    /// child rows with `.primary` text render white.
+    /// an in-frame clear button at the bottom-right. Forced dark colorScheme
+    /// so child rows with `.primary` text render white.
     private var terminalFrame: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .bottomTrailing) {
+            // ScrollView fills the entire frame, clips overflow naturally.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     let sessions = state.sessionsForDisplay
@@ -82,17 +83,20 @@ struct LogDrawerView: View {
                     }
                 }
                 .padding(8)
-                .padding(.trailing, 28)   // reserve space so clear button doesn't overlap text
+                .padding(.bottom, 32)   // reserve space at bottom so button doesn't overlap
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             clearButton
-                .padding(.top, 4)
+                .padding(.bottom, 6)
                 .padding(.trailing, 6)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 200)
         .background(Color(red: 0.07, green: 0.07, blue: 0.09))
+        // clipped() is important — prevents ScrollView content from drawing
+        // past the 200pt height when over-scrolled or during bounce.
+        .clipped()
         .overlay(
             Rectangle()
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
@@ -103,7 +107,7 @@ struct LogDrawerView: View {
         .environment(\.colorScheme, .dark)
     }
 
-    /// Compact clear-log button floating at top-right of the terminal frame.
+    /// Compact clear-log button floating at bottom-right of the terminal frame.
     private var clearButton: some View {
         Button {
             state.clearLog()
@@ -111,7 +115,7 @@ struct LogDrawerView: View {
             Image(systemName: "trash")
                 .font(.caption)
                 .foregroundStyle(Color.white.opacity(0.5))
-                .padding(4)
+                .padding(5)
                 .background(Color.white.opacity(0.08))
                 .clipShape(Circle())
         }

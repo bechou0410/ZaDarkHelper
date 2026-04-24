@@ -44,11 +44,11 @@ struct PreferencesView: View {
                     isOn: notifyBinding
                 )
                 toggleRow(
-                    title: "Tự động thoát Zalo khi áp lại",
+                    title: "Tự động thoát Zalo khi áp dụng lại",
                     subtitle: "có thể mất phiên chat đang mở",
-                    systemImage: "xmark.circle",
+                    systemImage: "exclamationmark.triangle.fill",
                     isOn: forceQuitBinding,
-                    destructive: true
+                    warning: true
                 )
 
                 if let onReplayOnboarding {
@@ -95,24 +95,27 @@ struct PreferencesView: View {
     // MARK: - Row builders
 
     /// Toggle row — leading icon + title (+ optional subtitle) + trailing switch.
+    /// `warning: true` tints icon + title in warning-orange (for options user
+    /// should think twice about — not fully destructive, just cautionary).
     @ViewBuilder
     private func toggleRow(
         title: String,
         subtitle: String? = nil,
         systemImage: String,
         isOn: Binding<Bool>,
-        destructive: Bool = false
+        warning: Bool = false
     ) -> some View {
+        let accent: Color = warning ? DesignTokens.warningOrange : .primary
         Toggle(isOn: isOn) {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.callout)
                     .frame(width: 18)
-                    .foregroundStyle(destructive ? .red : .primary)
+                    .foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.callout)
-                        .foregroundStyle(destructive ? .red : .primary)
+                        .foregroundStyle(accent)
                     if let subtitle {
                         Text(subtitle)
                             .font(.caption)

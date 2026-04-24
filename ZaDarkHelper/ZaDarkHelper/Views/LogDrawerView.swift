@@ -62,30 +62,50 @@ struct LogDrawerView: View {
     /// so child rows with `.primary` text render white.
     private var terminalFrame: some View {
         ZStack(alignment: .bottomTrailing) {
-            // ScrollView fills the entire frame, clips overflow naturally.
-            // Hide indicator — terminal aesthetic; user can scroll via trackpad.
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    let sessions = state.sessionsForDisplay
-                    if sessions.isEmpty {
-                        Text("Chưa có nhật ký. Bấm một hành động ở trên để bắt đầu.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 8)
-                    } else {
-                        ForEach(Array(sessions.enumerated()), id: \.element.id) { idx, session in
-                            LogSessionRow(session: session, initiallyExpanded: idx == 0)
-                            if idx < sessions.count - 1 {
-                                Divider()
-                                    .overlay(Color.white.opacity(0.1))
-                                    .padding(.vertical, 2)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        let sessions = chronologicalSessions   // oldest → newest
+                        if sessions.isEmpty {
+                            Text("Chưa có nhật ký. Bấm một hành động ở trên để bắt đầu.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 8)
+                        } else {
+                            ForEach(Array(sessions.enumerated()), id: \.element.id) { idx, session in
+                                // Expand the newest (last in chronological array).
+                                LogSessionRow(session: session,
+                                              initiallyExpanded: idx == sessions.count - 1)
+                                if idx < sessions.count - 1 {
+                                    Divider()
+                                        .overlay(Color.white.opacity(0.1))
+                                        .padding(.vertical, 2)
+                                }
                             }
+                            // Anchor at the bottom = newest, auto-scroll target.
+                            Color.clear
+                                .frame(height: 1)
+                                .id(Self.bottomAnchorID)
                         }
                     }
+                    .padding(8)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(8)
-                .padding(.bottom, 32)   // reserve space at bottom so button doesn't overlap
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // Re-scroll whenever the tail of the last session changes:
+                //   • session count grew (new session started)
+                //   • last session gained a new line
+                // Signature string identifies both cases.
+                .onChange(of: tailSignature) { _, _ in
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+                    }
+                }
+                .onAppear {
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+                    }
+                }
             }
 
             clearButton
@@ -103,6 +123,24 @@ struct LogDrawerView: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
         .environment(\.colorScheme, .dark)
+    }
+
+    private static let bottomAnchorID = "log-bottom-anchor"
+
+    /// Terminal order: oldest finished sessions first, then currentSession last.
+    /// Auto-scroll anchors to bottom so newest content is always visible.
+    private var chronologicalSessions: [LogSession] {
+        state.sessions + (state.currentSession.map { [$0] } ?? [])
+    }
+
+    /// Stable string that changes whenever the log's tail grows — used as the
+    /// onChange value so auto-scroll fires on new session OR new line.
+    private var tailSignature: String {
+        let sessions = chronologicalSessions
+        let sessionCount = sessions.count
+        let lastLineCount = sessions.last?.lines.count ?? 0
+        let lastLineID = sessions.last?.lines.last?.id.uuidString ?? "-"
+        return "\(sessionCount)-\(lastLineCount)-\(lastLineID)"
     }
 
     /// Compact clear-log button floating at bottom-right of the terminal frame.

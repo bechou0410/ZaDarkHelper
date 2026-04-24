@@ -156,13 +156,30 @@ enum GitHubReleaseChecker {
         let title = matchFirst(#"<title>([^<]+)</title>"#, in: xml.components(separatedBy: "<entry>").dropFirst().first ?? "")
             ?? tag
 
+        // Atom feed doesn't list assets. Construct the DMG URL from our own
+        // naming convention (`ZaDarkHelper-{version}.dmg`) so the banner can
+        // still show 'Cập nhật' (auto-install) instead of 'Tải thủ công'.
+        // If the DMG with this name doesn't exist on the release, HelperAutoUpdater
+        // will fail the download and the error surfaces to user — but 99% of
+        // the time it exists because build-release.sh produces it.
+        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        let dmgName = "ZaDarkHelper-\(version).dmg"
+        let dmgURL = URL(string: "https://github.com/\(owner)/\(repo)/releases/download/\(tag)/\(dmgName)")
+
+        let assets: [Asset]
+        if let dmgURL {
+            assets = [Asset(name: dmgName, downloadURL: dmgURL, sizeBytes: 0)]
+        } else {
+            assets = []
+        }
+
         return Release(
             tagName: tag,
             name: title,
             htmlURL: linkURL,
             publishedAt: nil,
             body: "",
-            assets: []
+            assets: assets
         )
     }
 

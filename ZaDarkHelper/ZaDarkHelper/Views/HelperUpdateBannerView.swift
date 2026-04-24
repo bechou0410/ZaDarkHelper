@@ -15,7 +15,11 @@ struct HelperUpdateBannerView: View {
     }
 
     var body: some View {
-        if let release = state.helperUpdate {
+        // Don't render while a manual check is still loading — user sees hero
+        // spinner alone, banner appears only once the check completes.
+        if state.isCheckingForUpdate {
+            EmptyView()
+        } else if let release = state.helperUpdate {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: "arrow.up.app.fill")

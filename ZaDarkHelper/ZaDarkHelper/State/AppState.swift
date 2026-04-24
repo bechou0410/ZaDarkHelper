@@ -44,6 +44,11 @@ final class AppState {
     /// Latest helper release from GitHub if newer than current. Nil when up-to-date or unchecked.
     var helperUpdate: GitHubReleaseChecker.Release?
 
+    /// True while a manual check-for-update is in flight. Banner views
+    /// observe this to suppress themselves during loading so the user sees
+    /// the hero spinner alone, not a banner flashing mid-check.
+    var isCheckingForUpdate: Bool = false
+
     /// Invoked when AppState wants the UI to surface itself (popover opens).
     /// Set by `StatusBarController` at init. Fires on:
     ///   • newly detected helper update

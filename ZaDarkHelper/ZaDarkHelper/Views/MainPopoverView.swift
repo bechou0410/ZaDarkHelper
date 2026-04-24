@@ -127,6 +127,7 @@ struct MainPopoverView: View {
 
     private func runCheckForUpdate() {
         isCheckingForUpdate = true
+        state.isCheckingForUpdate = true
         checkConfirmation = nil
         state.appendSystemLog("Kiểm tra cập nhật (thủ công)…")
         Task {
@@ -141,6 +142,7 @@ struct MainPopoverView: View {
                 try? await Task.sleep(nanoseconds: minLoadingNs - elapsedNs)
             }
             isCheckingForUpdate = false
+            state.isCheckingForUpdate = false
             if let release = state.helperUpdate {
                 checkConfirmation = .updateAvailable
                 state.appendSystemLog("Có bản mới \(release.tagName) — banner đang hiện.")

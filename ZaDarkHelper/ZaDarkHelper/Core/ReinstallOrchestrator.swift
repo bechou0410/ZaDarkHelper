@@ -72,7 +72,7 @@ actor ReinstallOrchestrator {
 
         prefsStorage.setLastPatchedZaloBuild(info.build)
         let zadarkVer = try? await cli.version()
-        let relaunched = wasRunning ? relaunchZalo() : false
+        let relaunched = wasRunning ? await relaunchZalo() : false
         return .rePatched(zaloBuild: info.build, zadarkVersion: zadarkVer, relaunched: relaunched)
     }
 
@@ -104,18 +104,19 @@ actor ReinstallOrchestrator {
 
         try await cli.install(onLine: logSink)
         prefsStorage.setLastPatchedZaloBuild(info.build)
-        let relaunched = wasRunning ? relaunchZalo() : false
+        let relaunched = wasRunning ? await relaunchZalo() : false
         return .upgradedAndRePatched(from: before, to: after, zaloBuild: info.build, relaunched: relaunched)
     }
 
     /// Flushes pending disk writes and opens Zalo.app.
-    /// Returns true when NSWorkspace successfully launched it (times out after 5s).
-    private func relaunchZalo() -> Bool {
+    /// Returns true when NSWorkspace successfully launched it.
+    /// Async all the way — no semaphore blocking the actor thread.
+    private func relaunchZalo() async -> Bool {
         // Darwin sync() flushes FS buffers — guards against Zalo loading a stale app.asar.
         Darwin.sync()
         // Let the sync + NSRunningApplication termination fully settle before launching.
-        usleep(500_000)
-        return ZaloLauncher.launch()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        return await ZaloLauncher.launch()
     }
 
     /// Politely terminate Zalo. Escalates to forceTerminate after 3s timeout.

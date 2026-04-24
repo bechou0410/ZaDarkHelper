@@ -170,7 +170,7 @@ struct MainPopoverView: View {
     private var secondaryRow: some View {
         HStack(spacing: 8) {
             Button {
-                Task.detached { ZaloLauncher.launch() }
+                Task { _ = await ZaloLauncher.launch() }
             } label: {
                 Label("Mở Zalo", systemImage: "arrow.up.forward.app")
             }

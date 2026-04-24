@@ -54,7 +54,7 @@ struct ActionPillButton: View {
         case .initializing: return "Đang tải…"
         case .brewMissing: return "Cài Homebrew"
         case .notInstalled: return "Cài ZaDark"
-        case .installed: return "Áp lại (tuỳ chọn)"
+        case .installed: return "Cài đặt lại ZaDark"
         case .updateAvailable: return "Cập nhật ZaDark"
         case .stale: return "Áp lại ZaDark ngay"
         case .broken: return "Khôi phục Zalo"

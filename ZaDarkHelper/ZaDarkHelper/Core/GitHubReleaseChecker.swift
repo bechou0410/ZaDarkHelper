@@ -63,10 +63,19 @@ enum GitHubReleaseChecker {
     // MARK: - Internals
 
     private static func fetchLatest() async throws -> Release {
-        let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases/latest")!
+        // Cache-bust query param so GitHub's edge CDN doesn't hand us a stale
+        // copy. Without this, a freshly-published release can take minutes to
+        // appear via `releases/latest`.
+        let cacheBust = Int(Date().timeIntervalSince1970)
+        let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases/latest?_=\(cacheBust)")!
         var req = URLRequest(url: url)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("ZaDarkHelper", forHTTPHeaderField: "User-Agent")
+        req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        req.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        // Ignore the local URLSession cache too — user clicked a manual refresh,
+        // they want a real hit. Periodic checks also benefit.
+        req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         req.timeoutInterval = 10
 
         let (data, response) = try await URLSession.shared.data(for: req)

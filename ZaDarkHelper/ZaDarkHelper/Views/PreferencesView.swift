@@ -9,8 +9,23 @@ struct PreferencesView: View {
     var onReplayOnboarding: (() -> Void)?
     @State private var expanded = false
 
+    /// Custom binding that wraps writes in a Transaction with
+    /// `disablesAnimations = true`. DisclosureGroup otherwise runs its own
+    /// internal animation on expand, which our parent `.transaction` modifier
+    /// only suppresses on collapse. This kills both directions.
+    private var expandedBinding: Binding<Bool> {
+        Binding(
+            get: { expanded },
+            set: { newValue in
+                var txn = Transaction()
+                txn.disablesAnimations = true
+                withTransaction(txn) { expanded = newValue }
+            }
+        )
+    }
+
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
+        DisclosureGroup(isExpanded: expandedBinding) {
             VStack(alignment: .leading, spacing: 2) {
                 toggleRow(
                     title: "Chạy cùng macOS khi đăng nhập",

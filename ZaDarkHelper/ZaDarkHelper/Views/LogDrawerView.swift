@@ -1,19 +1,19 @@
 import SwiftUI
 
 /// Outer log drawer with filter toggles + scrollable list of session rows.
-/// Latest session auto-expanded; older ones collapsed.
+/// Terminal-style dark frame, clear button sits inside the frame's top-right.
 struct LogDrawerView: View {
     @Environment(AppState.self) private var state
     @State private var expanded = false
 
-    /// v0.36 animation state: easeInOut 0.35s on binding setter.
+    /// v0.34 state: Transaction.disablesAnimations=true on setter.
     private var expandedBinding: Binding<Bool> {
         Binding(
             get: { expanded },
             set: { newValue in
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    expanded = newValue
-                }
+                var txn = Transaction()
+                txn.disablesAnimations = true
+                withTransaction(txn) { expanded = newValue }
             }
         )
     }
@@ -24,8 +24,7 @@ struct LogDrawerView: View {
         DisclosureGroup(isExpanded: expandedBinding) {
             VStack(alignment: .leading, spacing: 6) {
                 filterRow
-                sessionList
-                actionsRow
+                terminalFrame
             }
             .padding(.top, 4)
         } label: {
@@ -58,47 +57,66 @@ struct LogDrawerView: View {
         .font(.callout)
     }
 
-    private var sessionList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                let sessions = state.sessionsForDisplay
-                if sessions.isEmpty {
-                    Text("Chưa có nhật ký. Bấm một hành động ở trên để bắt đầu.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
-                } else {
-                    ForEach(Array(sessions.enumerated()), id: \.element.id) { idx, session in
-                        LogSessionRow(session: session, initiallyExpanded: idx == 0)
-                        if idx < sessions.count - 1 {
-                            Divider()
-                                .overlay(Color.white.opacity(0.1))
-                                .padding(.vertical, 2)
+    /// Full-width terminal frame containing the scrollable session list +
+    /// an in-frame clear button at the top-right. Forced dark colorScheme so
+    /// child rows with `.primary` text render white.
+    private var terminalFrame: some View {
+        ZStack(alignment: .topTrailing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    let sessions = state.sessionsForDisplay
+                    if sessions.isEmpty {
+                        Text("Chưa có nhật ký. Bấm một hành động ở trên để bắt đầu.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(Array(sessions.enumerated()), id: \.element.id) { idx, session in
+                            LogSessionRow(session: session, initiallyExpanded: idx == 0)
+                            if idx < sessions.count - 1 {
+                                Divider()
+                                    .overlay(Color.white.opacity(0.1))
+                                    .padding(.vertical, 2)
+                            }
                         }
                     }
                 }
+                .padding(8)
+                .padding(.trailing, 28)   // reserve space so clear button doesn't overlap text
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(8)
+
+            clearButton
+                .padding(.top, 4)
+                .padding(.trailing, 6)
         }
-        .frame(height: 200)   // fixed — scrolls internally, doesn't stretch panel
-        // Terminal-style dark backdrop so monospaced log text reads like a
-        // real shell transcript. Fixed near-black independent of system theme.
+        .frame(maxWidth: .infinity)
+        .frame(height: 200)
         .background(Color(red: 0.07, green: 0.07, blue: 0.09))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
+            Rectangle()
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
-        .environment(\.colorScheme, .dark)   // force dark palette on child rows
+        // Escape MainPopoverView's horizontal padding so the terminal frame
+        // extends edge-to-edge of the popover.
+        .padding(.horizontal, -DesignTokens.horizontalPadding)
+        .environment(\.colorScheme, .dark)
     }
 
-    private var actionsRow: some View {
-        HStack {
-            Spacer()
-            Button("Xoá nhật ký") { state.clearLog() }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .disabled(state.sessions.isEmpty && state.currentSession == nil)
+    /// Compact clear-log button floating at top-right of the terminal frame.
+    private var clearButton: some View {
+        Button {
+            state.clearLog()
+        } label: {
+            Image(systemName: "trash")
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.5))
+                .padding(4)
+                .background(Color.white.opacity(0.08))
+                .clipShape(Circle())
         }
+        .buttonStyle(.borderless)
+        .disabled(state.sessions.isEmpty && state.currentSession == nil)
+        .help("Xoá nhật ký")
     }
 }

@@ -10,14 +10,15 @@ struct PreferencesView: View {
     @State private var expanded = false
     @State private var showUninstallConfirm = false
 
-    /// v0.36 animation state: easeInOut 0.35s on binding setter.
+    /// v0.34 state: Transaction.disablesAnimations=true on setter.
+    /// Kills DisclosureGroup's internal expand animation at the binding level.
     private var expandedBinding: Binding<Bool> {
         Binding(
             get: { expanded },
             set: { newValue in
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    expanded = newValue
-                }
+                var txn = Transaction()
+                txn.disablesAnimations = true
+                withTransaction(txn) { expanded = newValue }
             }
         )
     }

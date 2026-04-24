@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Single-line footer with just ZaDarkHelper version.
-/// ZaDark + Zalo versions shown in hero chips, no duplication.
+/// Single-line footer with just ZaDarkHelper version, centered.
 struct FooterStrip: View {
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack {
+            Spacer()
             Label("ZaDarkHelper v\(Self.helperVersion)", systemImage: "app.badge")
-            Spacer(minLength: 6)
+            Spacer()
         }
         .font(.caption2)
         .foregroundStyle(.secondary)

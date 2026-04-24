@@ -67,6 +67,10 @@ struct PreferencesView: View {
             Label("Tuỳ chọn", systemImage: "slider.horizontal.3")
                 .font(.subheadline.weight(.medium))
         }
+        // Kill DisclosureGroup's internal expand animation — parent .transaction
+        // only covers the VStack layout, the disclosure's own slide-in of its
+        // content bypassed that. Local transaction here catches it.
+        .transaction { $0.animation = nil }
         .alert("Gỡ cài đặt ZaDark?", isPresented: $showUninstallConfirm) {
             Button("Huỷ", role: .cancel) { }
             Button("Gỡ cài đặt", role: .destructive) {

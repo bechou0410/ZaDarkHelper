@@ -19,6 +19,7 @@ struct LogDrawerView: View {
         } label: {
             label
         }
+        .transaction { $0.animation = nil }   // kill internal expand animation
     }
 
     private var label: some View {
@@ -59,16 +60,25 @@ struct LogDrawerView: View {
                     ForEach(Array(sessions.enumerated()), id: \.element.id) { idx, session in
                         LogSessionRow(session: session, initiallyExpanded: idx == 0)
                         if idx < sessions.count - 1 {
-                            Divider().padding(.vertical, 2)
+                            Divider()
+                                .overlay(Color.white.opacity(0.1))
+                                .padding(.vertical, 2)
                         }
                     }
                 }
             }
-            .padding(.horizontal, 2)
+            .padding(8)
         }
         .frame(maxHeight: 200)
-        .background(Color.black.opacity(0.04))
+        // Terminal-style dark backdrop so monospaced log text reads like a
+        // real shell transcript. Fixed near-black independent of system theme.
+        .background(Color(red: 0.07, green: 0.07, blue: 0.09))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
+        .environment(\.colorScheme, .dark)   // force dark palette on child rows
     }
 
     private var actionsRow: some View {

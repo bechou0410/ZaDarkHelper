@@ -39,27 +39,37 @@ struct MainPopoverView: View {
 
             HelperUpdateBannerView()
 
-            if showPreferences {
-                PreferencesView(
-                    isPresented: $showPreferences,
-                    onReplayOnboarding: {
-                        showPreferences = false
-                        showOnboarding = true
+            Group {
+                if showPreferences {
+                    PreferencesView(
+                        isPresented: $showPreferences,
+                        onReplayOnboarding: {
+                            showPreferences = false
+                            showOnboarding = true
+                        }
+                    )
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
+                            .fill(.thinMaterial)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
+                } else {
+                    VStack(spacing: DesignTokens.sectionSpacing) {
+                        StatusHeroCard()
+                        ActionPillButton()
                     }
-                )
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
-                        .fill(.thinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
-                )
-            } else {
-                StatusHeroCard()
-                ActionPillButton()
+                    .transition(.opacity)
+                }
             }
+            .animation(.easeInOut(duration: 0.22), value: showPreferences)
 
             secondaryRow
 

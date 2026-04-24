@@ -20,13 +20,13 @@ final class StatusBarController: NSObject {
         self.appState = appState
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        // NSPopover with default animates=true — handles its own frame
-        // interpolation when NSHostingController reports a new content size
-        // (e.g. DisclosureGroup expand/collapse). No custom animations on
-        // the SwiftUI side — everything uses stock SwiftUI/AppKit defaults.
+        // NSPopover with animates=false — per user feedback the content was
+        // "jumping" when DisclosureGroup expanded because the popover frame
+        // animated separately from the content. With animates=false, content
+        // size changes apply instantly and there's no visual disconnect.
         self.popover = NSPopover()
         self.popover.behavior = .transient
-        self.popover.animates = true
+        self.popover.animates = false
 
         // IMPORTANT: use .preferredContentSize so NSHostingController tracks
         // SwiftUI layout changes and updates popover size automatically.

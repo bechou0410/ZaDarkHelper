@@ -7,6 +7,16 @@ struct MainPopoverView: View {
     @Environment(AppState.self) private var state
     @State private var showOnboarding = false
     @State private var startedOnce = false
+    @State private var isCheckingForUpdate = false
+    @State private var checkConfirmation: CheckConfirmation?
+
+    /// Brief inline feedback after user taps the refresh icon.
+    /// Auto-clears after a short timeout so the header returns to baseline.
+    enum CheckConfirmation: Equatable {
+        case upToDate
+        case updateAvailable
+        case failed
+    }
 
     var body: some View {
         Group {
@@ -68,6 +78,58 @@ struct MainPopoverView: View {
                 .font(.title3)
             Text("ZaDark Helper").font(.headline)
             Spacer()
+            checkUpdateButton
+        }
+    }
+
+    /// Manual "check for updates" trigger in the header.
+    /// Shows spinner while checking, transient icon feedback on completion.
+    @ViewBuilder
+    private var checkUpdateButton: some View {
+        Button {
+            runCheckForUpdate()
+        } label: {
+            if isCheckingForUpdate {
+                ProgressView().controlSize(.small)
+            } else if let status = checkConfirmation {
+                Image(systemName: iconName(for: status))
+                    .foregroundStyle(iconColor(for: status))
+            } else {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.borderless)
+        .disabled(isCheckingForUpdate)
+        .help("Kiểm tra cập nhật")
+    }
+
+    private func iconName(for status: CheckConfirmation) -> String {
+        switch status {
+        case .upToDate: return "checkmark.circle.fill"
+        case .updateAvailable: return "arrow.up.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func iconColor(for status: CheckConfirmation) -> Color {
+        switch status {
+        case .upToDate: return .green
+        case .updateAvailable: return DesignTokens.warningOrange
+        case .failed: return .red
+        }
+    }
+
+    private func runCheckForUpdate() {
+        isCheckingForUpdate = true
+        checkConfirmation = nil
+        Task {
+            await state.checkForHelperUpdate()
+            isCheckingForUpdate = false
+            checkConfirmation = state.helperUpdate == nil ? .upToDate : .updateAvailable
+            // Clear confirmation after 2.5s so header returns to baseline icon.
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            checkConfirmation = nil
         }
     }
 

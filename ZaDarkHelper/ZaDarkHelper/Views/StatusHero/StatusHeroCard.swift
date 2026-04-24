@@ -8,12 +8,23 @@ import SwiftUI
 struct StatusHeroCard: View {
     @Environment(AppState.self) private var state
 
+    /// When set, hero temporarily shows update-check feedback instead of the
+    /// regular app status. Set by MainPopoverView while user-triggered check
+    /// is in flight or the result is still fresh.
+    var checkOverride: CheckOverride?
+
+    enum CheckOverride: Equatable {
+        case checking
+        case upToDate
+        case failed(String)
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             StatusHeroGradient(status: state.status)
 
             HStack(alignment: .top, spacing: 12) {
-                StatusHeroIcon(status: state.status, isBusy: state.isBusy)
+                overrideOrStatusIcon
                     .padding(.top, 2)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -56,6 +67,30 @@ struct StatusHeroCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - Icon row
+
+    @ViewBuilder
+    private var overrideOrStatusIcon: some View {
+        switch checkOverride {
+        case .checking:
+            ProgressView()
+                .controlSize(.large)
+                .frame(width: DesignTokens.heroIconSize + 8, height: DesignTokens.heroIconSize + 8)
+        case .upToDate:
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: DesignTokens.heroIconSize, weight: .semibold))
+                .foregroundStyle(.green)
+                .frame(width: DesignTokens.heroIconSize + 8, height: DesignTokens.heroIconSize + 8)
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: DesignTokens.heroIconSize, weight: .semibold))
+                .foregroundStyle(.red)
+                .frame(width: DesignTokens.heroIconSize + 8, height: DesignTokens.heroIconSize + 8)
+        case .none:
+            StatusHeroIcon(status: state.status, isBusy: state.isBusy)
+        }
+    }
+
     /// Small static chip showing Zalo's version alongside ZaDark's in the hero row.
     /// Rendered in blue tint so it reads as a context marker, not an action.
     private func zaloVersionChip(_ zalo: ZaloInfo) -> some View {
@@ -75,6 +110,14 @@ struct StatusHeroCard: View {
     // MARK: - Copy
 
     private var title: String {
+        // Override takes precedence — check feedback shown first.
+        switch checkOverride {
+        case .checking: return "Đang kiểm tra cập nhật…"
+        case .upToDate: return "ZaDarkHelper đã mới nhất"
+        case .failed: return "Không kiểm tra được"
+        case .none:
+            break
+        }
         switch state.status {
         case .initializing: return "Đang kiểm tra…"
         case .brewMissing: return "Cần cài Homebrew"
@@ -89,6 +132,13 @@ struct StatusHeroCard: View {
     }
 
     private var subtitle: String {
+        switch checkOverride {
+        case .checking: return "Đang gọi GitHub Releases API…"
+        case .upToDate: return "Phiên bản đang dùng: v\(GitHubReleaseChecker.currentHelperVersion())"
+        case .failed(let msg): return msg
+        case .none:
+            break
+        }
         switch state.status {
         case .initializing: return "Đang đọc trạng thái Zalo + Homebrew."
         case .brewMissing: return "Bấm nút dưới để mở Terminal và cài Homebrew."

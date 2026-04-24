@@ -48,7 +48,7 @@ struct MainPopoverView: View {
 
             HelperUpdateBannerView()
 
-            StatusHeroCard()
+            StatusHeroCard(checkOverride: heroCheckOverride)
             ActionPillButton()
 
             secondaryRow
@@ -128,6 +128,20 @@ struct MainPopoverView: View {
             checkConfirmation = state.helperUpdate == nil ? .upToDate : .updateAvailable
             try? await Task.sleep(nanoseconds: 2_500_000_000)
             checkConfirmation = nil
+        }
+    }
+
+    /// Derives a StatusHeroCard override from the current check state so the
+    /// hero card visually reflects the check lifecycle.
+    /// - While checking: show spinner + "Đang kiểm tra..."
+    /// - After: "Đã mới nhất" briefly (upToDate) or nothing (updateAvailable —
+    ///   banner takes over)
+    private var heroCheckOverride: StatusHeroCard.CheckOverride? {
+        if isCheckingForUpdate { return .checking }
+        switch checkConfirmation {
+        case .upToDate: return .upToDate
+        case .failed: return .failed("Vui lòng thử lại.")
+        case .updateAvailable, .none: return nil
         }
     }
 

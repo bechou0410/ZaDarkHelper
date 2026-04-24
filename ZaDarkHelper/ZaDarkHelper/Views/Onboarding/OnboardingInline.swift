@@ -8,11 +8,17 @@ struct OnboardingInline: View {
     @State private var coordinator = OnboardingCoordinator()
     let onFinish: () -> Void
 
+    /// Fixed content height so the popover doesn't jump between steps.
+    /// Each step fills this area and aligns content to top — remaining space
+    /// is empty padding, giving a consistent card feel.
+    private let contentHeight: CGFloat = 340
+
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
             content
+                .frame(maxWidth: .infinity, minHeight: contentHeight, alignment: .top)
                 .padding(.horizontal, DesignTokens.horizontalPadding)
                 .padding(.vertical, 14)
             Divider()

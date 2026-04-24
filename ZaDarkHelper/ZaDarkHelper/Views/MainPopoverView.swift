@@ -57,7 +57,7 @@ struct MainPopoverView: View {
 
             Divider()
 
-            // Tuỳ chọn — disclosure group (mirrors "> Nhật ký" pattern).
+            // Tuỳ chọn — native DisclosureGroup pattern.
             PreferencesView(onReplayOnboarding: {
                 showOnboarding = true
             })
@@ -68,6 +68,10 @@ struct MainPopoverView: View {
         }
         .padding(.horizontal, DesignTokens.horizontalPadding)
         .padding(.vertical, DesignTokens.sectionSpacing)
+        // Kill SwiftUI's implicit layout animation when disclosures expand —
+        // header + hero + action must stay static. Applied at the parent so
+        // it cascades to both disclosure groups below.
+        .transaction { $0.animation = nil }
     }
 
     private var header: some View {

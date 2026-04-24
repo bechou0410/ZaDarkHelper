@@ -8,6 +8,7 @@ struct PreferencesView: View {
     @Environment(AppState.self) private var state
     var onReplayOnboarding: (() -> Void)?
     @State private var expanded = false
+    @State private var showUninstallConfirm = false
 
     /// Custom binding that wraps writes in a Transaction with
     /// `disablesAnimations = true`. DisclosureGroup otherwise runs its own
@@ -63,11 +64,31 @@ struct PreferencesView: View {
                         onReplayOnboarding()
                     }
                 }
+
+                // Destructive action — kept at the bottom + confirmation dialog
+                // so accidental click doesn't wipe ZaDark.
+                Divider()
+                    .padding(.vertical, 2)
+                menuButton(
+                    title: "Gỡ cài đặt ZaDark",
+                    systemImage: "trash",
+                    destructive: true
+                ) {
+                    showUninstallConfirm = true
+                }
             }
             .padding(.top, 6)
         } label: {
             Label("Tuỳ chọn", systemImage: "slider.horizontal.3")
                 .font(.subheadline.weight(.medium))
+        }
+        .alert("Gỡ cài đặt ZaDark?", isPresented: $showUninstallConfirm) {
+            Button("Huỷ", role: .cancel) { }
+            Button("Gỡ cài đặt", role: .destructive) {
+                Task { await state.uninstallZaDark() }
+            }
+        } message: {
+            Text("Zalo sẽ trở về giao diện sáng mặc định. ZaDark CLI vẫn giữ — có thể cài lại bất cứ lúc nào từ nút 'Cài ZaDark'.")
         }
     }
 
@@ -107,10 +128,12 @@ struct PreferencesView: View {
     }
 
     /// Regular button row (icon + title + chevron).
+    /// Destructive variant colors icon + title red for destructive actions.
     @ViewBuilder
     private func menuButton(
         title: String,
         systemImage: String,
+        destructive: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -118,7 +141,10 @@ struct PreferencesView: View {
                 Image(systemName: systemImage)
                     .font(.callout)
                     .frame(width: 18)
-                Text(title).font(.callout)
+                    .foregroundStyle(destructive ? .red : .primary)
+                Text(title)
+                    .font(.callout)
+                    .foregroundStyle(destructive ? .red : .primary)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)

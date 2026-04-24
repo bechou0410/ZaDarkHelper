@@ -46,7 +46,11 @@ struct MainPopoverView: View {
                 OnboardingBannerView()
             }
 
+            // `.id` keyed on the release tag forces SwiftUI to re-identify the
+            // banner when helperUpdate flips nil↔non-nil, guaranteeing a fresh
+            // evaluation even if the @Observable tracker missed the change.
             HelperUpdateBannerView()
+                .id(state.helperUpdate?.tagName ?? "no-update")
 
             StatusHeroCard(checkOverride: heroCheckOverride)
             ActionPillButton()
@@ -124,6 +128,7 @@ struct MainPopoverView: View {
     private func runCheckForUpdate() {
         isCheckingForUpdate = true
         checkConfirmation = nil
+        state.appendSystemLog("Kiểm tra cập nhật (thủ công)…")
         Task {
             // Enforce a minimum 3s loading state so user always sees the
             // "Đang kiểm tra…" feedback — even when the GitHub API returns
@@ -136,7 +141,13 @@ struct MainPopoverView: View {
                 try? await Task.sleep(nanoseconds: minLoadingNs - elapsedNs)
             }
             isCheckingForUpdate = false
-            checkConfirmation = state.helperUpdate == nil ? .upToDate : .updateAvailable
+            if let release = state.helperUpdate {
+                checkConfirmation = .updateAvailable
+                state.appendSystemLog("Có bản mới \(release.tagName) — banner đang hiện.")
+            } else {
+                checkConfirmation = .upToDate
+                state.appendSystemLog("Đã là bản mới nhất v\(GitHubReleaseChecker.currentHelperVersion()).")
+            }
             try? await Task.sleep(nanoseconds: 2_500_000_000)
             checkConfirmation = nil
         }

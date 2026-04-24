@@ -94,16 +94,13 @@ struct LogDrawerView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 200)
         .background(Color(red: 0.07, green: 0.07, blue: 0.09))
-        // clipped() is important — prevents ScrollView content from drawing
-        // past the 200pt height when over-scrolled or during bounce.
-        .clipped()
+        // v0.42-style rounded frame — constrained within parent horizontal
+        // padding, 6pt rounded corners clip scroll content correctly.
+        .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
-            Rectangle()
+            RoundedRectangle(cornerRadius: 6)
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
-        // Escape MainPopoverView's horizontal padding so the terminal frame
-        // extends edge-to-edge of the popover.
-        .padding(.horizontal, -DesignTokens.horizontalPadding)
         .environment(\.colorScheme, .dark)
     }
 

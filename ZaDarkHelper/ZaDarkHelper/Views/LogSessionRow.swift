@@ -47,17 +47,19 @@ struct LogSessionRow: View {
                 .foregroundStyle(statusTint)
                 .font(.caption)
 
+            // Verb in terminal-cyan accent — mimics shell prompt coloring.
             Text(session.verb)
-                .font(.subheadline.weight(.medium))
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .foregroundStyle(Self.accentCyan)
 
             Text(Self.timeFormatter.string(from: session.startedAt))
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Self.dimGray)
 
             if let d = session.duration {
                 Text(String(format: "%.1fs", d))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Self.dimGray)
             } else if !session.isFinished {
                 ProgressView().controlSize(.mini)
             }
@@ -66,9 +68,12 @@ struct LogSessionRow: View {
 
             Text("\(session.lines.count)")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Self.dimGray)
         }
     }
+
+    private static let accentCyan = Color(red: 0.45, green: 0.80, blue: 0.95)
+    private static let dimGray    = Color(white: 0.55)
 
     private var statusIcon: String {
         switch session.finalStatus {

@@ -68,10 +68,6 @@ struct MainPopoverView: View {
             FooterStrip()
         }
         .padding(DesignTokens.horizontalPadding)   // symmetric on all 4 edges
-        // Kill all SwiftUI implicit animations so DisclosureGroup expand/
-        // collapse doesn't animate the parent VStack layout — header + hero
-        // + log drawer backdrop stay pixel-locked in place.
-        .transaction { $0.animation = nil }
     }
 
     private var header: some View {
@@ -134,10 +130,10 @@ struct MainPopoverView: View {
         checkConfirmation = nil
         state.appendSystemLog("Kiểm tra cập nhật (thủ công)…")
         Task {
-            // Enforce a minimum 3s loading state so user always sees the
+            // Enforce a minimum 1.5s loading state so user always sees the
             // "Đang kiểm tra…" feedback — even when the GitHub API returns
             // in <100ms (common with warm caches).
-            let minLoadingNs: UInt64 = 3_000_000_000
+            let minLoadingNs: UInt64 = 1_500_000_000
             let start = DispatchTime.now()
             await state.checkForHelperUpdate()
             let elapsedNs = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds

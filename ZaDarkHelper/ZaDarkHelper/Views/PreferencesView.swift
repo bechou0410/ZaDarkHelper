@@ -10,8 +10,21 @@ struct PreferencesView: View {
     @State private var expanded = false
     @State private var showUninstallConfirm = false
 
+    /// easeInOut 0.5s on the binding setter — animates the disclosure content
+    /// without touching NSPopover frame (popover stays animates=false).
+    private var expandedBinding: Binding<Bool> {
+        Binding(
+            get: { expanded },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    expanded = newValue
+                }
+            }
+        )
+    }
+
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
+        DisclosureGroup(isExpanded: expandedBinding) {
             VStack(alignment: .leading, spacing: 2) {
                 toggleRow(
                     title: "Chạy cùng macOS khi đăng nhập",

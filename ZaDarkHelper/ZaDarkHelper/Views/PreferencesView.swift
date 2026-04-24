@@ -10,17 +10,16 @@ struct PreferencesView: View {
     @State private var expanded = false
     @State private var showUninstallConfirm = false
 
-    /// Custom binding that wraps writes in a Transaction with
-    /// `disablesAnimations = true`. DisclosureGroup otherwise runs its own
-    /// internal animation on expand, which our parent `.transaction` modifier
-    /// only suppresses on collapse. This kills both directions.
+    /// Custom binding that wraps writes in a smooth easeInOut animation.
+    /// Popover + parent VStack re-layout with the same timing so expand/collapse
+    /// looks gradual instead of snapping.
     private var expandedBinding: Binding<Bool> {
         Binding(
             get: { expanded },
             set: { newValue in
-                var txn = Transaction()
-                txn.disablesAnimations = true
-                withTransaction(txn) { expanded = newValue }
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    expanded = newValue
+                }
             }
         )
     }
@@ -44,7 +43,7 @@ struct PreferencesView: View {
                     isOn: notifyBinding
                 )
                 toggleRow(
-                    title: "Tự động thoát Zalo khi áp dụng lại",
+                    title: "Tự động thoát Zalo khi cài đặt Zadark",
                     subtitle: "có thể mất phiên chat đang mở",
                     systemImage: "exclamationmark.triangle.fill",
                     isOn: forceQuitBinding,

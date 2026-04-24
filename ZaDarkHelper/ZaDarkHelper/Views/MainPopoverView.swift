@@ -68,7 +68,6 @@ struct MainPopoverView: View {
             FooterStrip()
         }
         .padding(DesignTokens.horizontalPadding)   // symmetric on all 4 edges
-        .transaction { $0.animation = nil }
     }
 
     private var header: some View {

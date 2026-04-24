@@ -6,15 +6,14 @@ struct LogDrawerView: View {
     @Environment(AppState.self) private var state
     @State private var expanded = false
 
-    /// Writes wrapped in `disablesAnimations = true` to suppress DisclosureGroup's
-    /// built-in expand animation on both directions.
+    /// Writes wrapped in a gradual easeInOut animation for smooth expand/collapse.
     private var expandedBinding: Binding<Bool> {
         Binding(
             get: { expanded },
             set: { newValue in
-                var txn = Transaction()
-                txn.disablesAnimations = true
-                withTransaction(txn) { expanded = newValue }
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    expanded = newValue
+                }
             }
         )
     }

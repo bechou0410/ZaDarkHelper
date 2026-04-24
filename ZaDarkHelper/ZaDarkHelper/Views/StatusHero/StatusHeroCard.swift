@@ -96,13 +96,19 @@ struct StatusHeroCard: View {
                 .controlSize(.large)
                 .frame(width: DesignTokens.heroIconSize + 8, height: DesignTokens.heroIconSize + 8)
         case .upToDate:
+            // Match StatusHeroIcon styling exactly — hierarchical rendering
+            // gives the seal the same depth/layers look as when rendered for
+            // the normal .installed status. Without this, the upToDate seal
+            // is flat-filled and looks visually different despite same symbol.
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: DesignTokens.heroIconSize, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.green)
                 .frame(width: DesignTokens.heroIconSize + 8, height: DesignTokens.heroIconSize + 8)
         case .failed:
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: DesignTokens.heroIconSize, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.red)
                 .frame(width: DesignTokens.heroIconSize + 8, height: DesignTokens.heroIconSize + 8)
         case .none:

@@ -39,40 +39,35 @@ struct MainPopoverView: View {
 
             HelperUpdateBannerView()
 
-            // Settings panel slot — one view visible at a time.
-            // Animation design: symmetric scale + opacity + subtle blur using a
-            // spring curve. Scale anchored to the top so the content feels
-            // anchored to the gear button (not floating from center).
-            // Spring response (~0.3s) matches NSPopover's internal resize
-            // animation so content + frame move together → single smooth gesture.
-            Group {
-                if showPreferences {
-                    PreferencesView(
-                        isPresented: $showPreferences,
-                        onReplayOnboarding: {
-                            showPreferences = false
-                            showOnboarding = true
-                        }
-                    )
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
-                            .fill(.thinMaterial)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
-                    )
-                    .transition(panelTransition)
-                } else {
-                    VStack(spacing: DesignTokens.sectionSpacing) {
-                        StatusHeroCard()
-                        ActionPillButton()
+            // Settings drops down from the header (dropdown-menu feel). Hero
+            // card + action button stay visible underneath and get pushed
+            // down smoothly as popover grows. On close, settings slides back
+            // up into the header edge and the space collapses.
+            if showPreferences {
+                PreferencesView(
+                    isPresented: $showPreferences,
+                    onReplayOnboarding: {
+                        showPreferences = false
+                        showOnboarding = true
                     }
-                    .transition(panelTransition)
-                }
+                )
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
+                        .fill(.thinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
+                )
+                // clipped keeps sliding content from overflowing outside the
+                // rounded card during the drop animation.
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.cardCornerRadius, style: .continuous))
+                .transition(dropdownTransition)
             }
-            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showPreferences)
+
+            StatusHeroCard()
+            ActionPillButton()
 
             secondaryRow
 
@@ -84,17 +79,22 @@ struct MainPopoverView: View {
         }
         .padding(.horizontal, DesignTokens.horizontalPadding)
         .padding(.vertical, DesignTokens.sectionSpacing)
+        // Animate layout shifts of the whole popover content as settings
+        // drops in/out. Spring gives a natural "drawer" feel; response 0.45s
+        // is slower than before per user feedback ("hơi nhanh").
+        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: showPreferences)
     }
 
-    /// Symmetric transition for the settings slot.
-    /// Combines scale-from-top (0.94 → 1.0) with opacity + a tiny blur.
-    /// Scale anchor = top because both the gear button trigger and the content
-    /// above are at the top of the popover — animating from there feels more
-    /// physical than floating from the center.
-    private var panelTransition: AnyTransition {
-        .scale(scale: 0.94, anchor: .top)
-            .combined(with: .opacity)
-            .combined(with: .blur)
+    /// Dropdown-menu transition for settings panel.
+    /// Combines vertical push (slides down from the header edge) with opacity
+    /// fade. The popover itself grows to accommodate, and views below (hero
+    /// card, action button) shift down smoothly as part of the VStack layout
+    /// animation — giving a single "drawer opens" gesture.
+    private var dropdownTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .top).combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
     }
 
     private var header: some View {

@@ -8,16 +8,28 @@ enum GitHubReleaseChecker {
     static let owner = "bechou0410"
     static let repo = "ZaDarkHelper"
 
+    struct Asset: Sendable, Equatable {
+        let name: String
+        let downloadURL: URL
+        let sizeBytes: Int
+    }
+
     struct Release: Sendable, Equatable {
         let tagName: String        // e.g. "v0.2.0"
         let name: String           // release title
         let htmlURL: URL           // release page to open in browser
         let publishedAt: Date?
         let body: String           // changelog markdown
+        let assets: [Asset]        // attached files (DMGs, etc.)
 
         /// Strip leading 'v' for numeric comparison.
         var versionString: String {
             tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
+        }
+
+        /// First .dmg asset — what the auto-updater downloads.
+        var dmgAsset: Asset? {
+            assets.first { $0.name.lowercased().hasSuffix(".dmg") }
         }
     }
 
@@ -75,12 +87,17 @@ enum GitHubReleaseChecker {
         guard let url = URL(string: payload.html_url) else {
             throw NSError(domain: "GitHub", code: -2, userInfo: [NSLocalizedDescriptionKey: "Bad URL"])
         }
+        let assets: [Asset] = (payload.assets ?? []).compactMap { a in
+            guard let dl = URL(string: a.browser_download_url) else { return nil }
+            return Asset(name: a.name, downloadURL: dl, sizeBytes: a.size)
+        }
         return Release(
             tagName: payload.tag_name,
             name: payload.name ?? payload.tag_name,
             htmlURL: url,
             publishedAt: payload.published_at,
-            body: payload.body ?? ""
+            body: payload.body ?? "",
+            assets: assets
         )
     }
 
@@ -105,5 +122,12 @@ enum GitHubReleaseChecker {
         let html_url: String
         let published_at: Date?
         let body: String?
+        let assets: [AssetPayload]?
+    }
+
+    private struct AssetPayload: Decodable {
+        let name: String
+        let browser_download_url: String
+        let size: Int
     }
 }

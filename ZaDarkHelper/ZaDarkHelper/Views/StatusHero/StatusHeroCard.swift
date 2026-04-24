@@ -21,7 +21,11 @@ struct StatusHeroCard: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            StatusHeroGradient(status: state.status)
+            // Gradient follows the effective status (override takes priority)
+            // so backdrop matches the icon — e.g. green check icon sits on a
+            // subtle green-tinted gradient, not a stale gray one from the
+            // underlying real status.
+            StatusHeroGradient(status: effectiveStatus)
 
             HStack(alignment: .top, spacing: 12) {
                 overrideOrStatusIcon
@@ -65,6 +69,21 @@ struct StatusHeroCard: View {
             .padding(DesignTokens.heroPadding)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Derived
+
+    /// Maps the current checkOverride (if any) onto an AppState.Status value
+    /// so all the status-driven visuals (gradient, border, tint) stay in sync
+    /// with whatever the hero is actually showing. Without this mapping, the
+    /// backdrop and the icon could use different colors.
+    private var effectiveStatus: AppState.Status {
+        switch checkOverride {
+        case .checking: return .working("Đang kiểm tra cập nhật…")
+        case .upToDate: return .installed(version: state.installedZaDarkVersion ?? "?")
+        case .failed(let msg): return .error(msg)
+        case .none: return state.status
+        }
     }
 
     // MARK: - Icon row

@@ -7,16 +7,7 @@ struct MainPopoverView: View {
     @Environment(AppState.self) private var state
     @State private var showOnboarding = false
     @State private var startedOnce = false
-    @State private var isCheckingForUpdate = false
-    @State private var checkConfirmation: CheckConfirmation?
-
-    /// Brief inline feedback after user taps the refresh icon.
-    /// Auto-clears after a short timeout so the header returns to baseline.
-    enum CheckConfirmation: Equatable {
-        case upToDate
-        case updateAvailable
-        case failed
-    }
+    @State private var updateCheckPhase: UpdateCheckCard.Phase?
 
     var body: some View {
         Group {
@@ -50,8 +41,14 @@ struct MainPopoverView: View {
 
             HelperUpdateBannerView()
 
-            StatusHeroCard()
-            ActionPillButton()
+            // Main status area: UpdateCheckCard takes over when user actively
+            // checked for an update; otherwise the normal StatusHeroCard + action.
+            if let phase = updateCheckPhase {
+                UpdateCheckCard(phase: phase, onDismiss: { updateCheckPhase = nil })
+            } else {
+                StatusHeroCard()
+                ActionPillButton()
+            }
 
             secondaryRow
 
@@ -86,54 +83,42 @@ struct MainPopoverView: View {
         }
     }
 
-    /// Manual "check for updates" trigger in the header.
-    /// Shows spinner while checking, transient icon feedback on completion.
+    /// Manual "check for updates" trigger in the header. Shows rotating arrows
+    /// icon baseline; disabled while a check is in flight (main panel's
+    /// UpdateCheckCard handles the actual feedback rendering).
     @ViewBuilder
     private var checkUpdateButton: some View {
         Button {
             runCheckForUpdate()
         } label: {
-            if isCheckingForUpdate {
-                ProgressView().controlSize(.small)
-            } else if let status = checkConfirmation {
-                Image(systemName: iconName(for: status))
-                    .foregroundStyle(iconColor(for: status))
-            } else {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.secondary)
-            }
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.borderless)
-        .disabled(isCheckingForUpdate)
+        .disabled(isChecking)
         .help("Kiểm tra cập nhật")
     }
 
-    private func iconName(for status: CheckConfirmation) -> String {
-        switch status {
-        case .upToDate: return "checkmark.circle.fill"
-        case .updateAvailable: return "arrow.up.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        }
-    }
-
-    private func iconColor(for status: CheckConfirmation) -> Color {
-        switch status {
-        case .upToDate: return .green
-        case .updateAvailable: return DesignTokens.warningOrange
-        case .failed: return .red
-        }
+    private var isChecking: Bool {
+        if case .checking = updateCheckPhase { return true }
+        return false
     }
 
     private func runCheckForUpdate() {
-        isCheckingForUpdate = true
-        checkConfirmation = nil
+        updateCheckPhase = .checking
         Task {
             await state.checkForHelperUpdate()
-            isCheckingForUpdate = false
-            checkConfirmation = state.helperUpdate == nil ? .upToDate : .updateAvailable
-            // Clear confirmation after 2.5s so header returns to baseline icon.
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            checkConfirmation = nil
+            if let release = state.helperUpdate {
+                updateCheckPhase = .updateAvailable(release: release)
+                // Keep card visible — user needs to act on it.
+            } else {
+                updateCheckPhase = .upToDate(current: GitHubReleaseChecker.currentHelperVersion())
+                // Auto-dismiss after 3s so hero card comes back.
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if case .upToDate = updateCheckPhase {
+                    updateCheckPhase = nil
+                }
+            }
         }
     }
 

@@ -9,6 +9,7 @@ struct MainPopoverView: View {
     @State private var startedOnce = false
     @State private var isCheckingForUpdate = false
     @State private var checkConfirmation: CheckConfirmation?
+    @State private var isCheckingZaDark = false
 
     /// Brief header-icon feedback after user taps the refresh button.
     /// The actual "có bản mới" surface is HelperUpdateBannerView.
@@ -53,7 +54,11 @@ struct MainPopoverView: View {
                 .id(state.helperUpdate?.tagName ?? "no-update")
 
             StatusHeroCard(checkOverride: heroCheckOverride)
-            ActionPillButton()
+
+            HStack(spacing: 8) {
+                ActionPillButton()
+                checkZaDarkButton
+            }
 
             secondaryRow
 
@@ -121,6 +126,47 @@ struct MainPopoverView: View {
         case .upToDate: return .green
         case .updateAvailable: return DesignTokens.warningOrange
         case .failed: return .red
+        }
+    }
+
+    /// Button beside primary action — manually triggers `brew outdated zadark`.
+    /// Result reflected in hero status (becomes .updateAvailable if outdated).
+    @ViewBuilder
+    private var checkZaDarkButton: some View {
+        Button {
+            runCheckZaDarkUpdate()
+        } label: {
+            if isCheckingZaDark {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.callout)
+            }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .disabled(isCheckingZaDark || state.isBusy)
+        .help("Kiểm tra cập nhật ZaDark")
+    }
+
+    private func runCheckZaDarkUpdate() {
+        isCheckingZaDark = true
+        state.appendSystemLog("Kiểm tra cập nhật ZaDark (thủ công)…")
+        Task {
+            let minLoadingNs: UInt64 = 1_500_000_000
+            let start = DispatchTime.now()
+            await state.checkForZaDarkUpdate()
+            let elapsedNs = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            if elapsedNs < minLoadingNs {
+                try? await Task.sleep(nanoseconds: minLoadingNs - elapsedNs)
+            }
+            isCheckingZaDark = false
+            // Log outcome — hero status already updated via refresh() inside.
+            if case .updateAvailable = state.status {
+                state.appendSystemLog("ZaDark có bản mới — bấm 'Cập nhật ZaDark'.")
+            } else {
+                state.appendSystemLog("ZaDark đã là bản mới nhất.")
+            }
         }
     }
 

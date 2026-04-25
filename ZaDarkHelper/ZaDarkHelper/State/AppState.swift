@@ -352,7 +352,7 @@ final class AppState {
         // Wire scheduler tick to periodic update check.
         // Replacing the closure requires a fresh instance.
         let periodic = UpdateScheduler(onTick: { [weak self] in
-            Task { @MainActor in await self?.checkForZaDarkUpdate() }
+            Task { @MainActor in await self?.runPeriodicChecks() }
         })
         periodic.start()
         // Keep a strong reference by assigning over the placeholder slot.
@@ -412,7 +412,9 @@ final class AppState {
         }
     }
 
-    private func checkForZaDarkUpdate() async {
+    /// Public — also called by manual UI button beside primary action.
+    /// Always refreshes status afterward so the hero card reflects the result.
+    func checkForZaDarkUpdate() async {
         guard brew.isInstalled(),
               (try? await brew.installedVersion(of: "zadark")) != nil else { return }
         try? await brew.update(onLine: nil)
@@ -425,10 +427,14 @@ final class AppState {
                 title: "ZaDark có bản mới",
                 body: "Mở ZaDark Helper để cập nhật."
             )
-            await refresh()
         }
+        await refresh()
+    }
 
-        // Also check GitHub for a newer ZaDarkHelper release.
+    /// Periodic timer also checks GitHub helper releases — split out so the
+    /// manual button can call ZaDark-only without piggybacking helper check.
+    func runPeriodicChecks() async {
+        await checkForZaDarkUpdate()
         await checkForHelperUpdate()
     }
 

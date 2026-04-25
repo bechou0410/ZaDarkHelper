@@ -418,11 +418,16 @@ final class AppState {
         guard brew.isInstalled(),
               (try? await brew.installedVersion(of: "zadark")) != nil else { return }
         try? await brew.update(onLine: nil)
-        let outdated = (try? await brew.outdated("zadark")) ?? false
+        // Use detailed variant so we can log raw stdout/stderr — needed when
+        // brew works on CLI but the in-app probe disagrees (env / PATH /
+        // tap-resolution gotchas).
+        let outcome = (try? await brew.outdatedDetailed("zadark"))
+            ?? (outdated: false, stdout: "<call threw>", stderr: "")
+        appendSystemLog("brew outdated zadark → outdated=\(outcome.outdated) stdout=\"\(outcome.stdout.trimmingCharacters(in: .whitespacesAndNewlines))\" stderr=\"\(outcome.stderr.prefix(120))\"")
         let now = Date.now
         prefsStorage.setLastUpdateCheck(now)
         lastUpdateCheck = now
-        if outdated, preferences.notifyOnZaDarkUpdate {
+        if outcome.outdated, preferences.notifyOnZaDarkUpdate {
             await NotificationService.post(
                 title: "ZaDark có bản mới",
                 body: "Mở ZaDark Helper để cập nhật."

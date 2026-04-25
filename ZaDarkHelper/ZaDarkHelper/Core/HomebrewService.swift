@@ -59,10 +59,26 @@ struct HomebrewService: Sendable {
 
     /// True if formula has a newer version available.
     /// Uses `brew outdated --quiet <formula>` — non-empty stdout = outdated.
+    /// Returns the raw stdout too so the caller can log it for diagnostics
+    /// (helper UI was reporting "đã mới nhất" while CLI showed outdated;
+    /// without raw output it was impossible to trace).
     func outdated(_ formula: String) async throws -> Bool {
+        let (isOutdated, _, _) = try await outdatedDetailed(formula)
+        return isOutdated
+    }
+
+    func outdatedDetailed(_ formula: String) async throws -> (outdated: Bool, stdout: String, stderr: String) {
         let brew = try requireBrew()
-        let result = try await shell.run(brew, args: ["outdated", "--quiet", formula], env: nil, onLine: nil)
-        return result.ok && !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // Provide HOME explicitly — brew refuses to run without it. Inherit
+        // the rest from the launching process so brew can locate its Cellar
+        // and tap config like normal CLI.
+        var env = ProcessInfo.processInfo.environment
+        if env["HOME"] == nil {
+            env["HOME"] = NSHomeDirectory()
+        }
+        let result = try await shell.run(brew, args: ["outdated", "--quiet", formula], env: env, onLine: nil)
+        let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (result.ok && !trimmed.isEmpty, result.stdout, result.stderr)
     }
 
     private func requireBrew() throws -> String {

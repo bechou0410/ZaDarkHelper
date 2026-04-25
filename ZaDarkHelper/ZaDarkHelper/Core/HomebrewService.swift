@@ -69,16 +69,17 @@ struct HomebrewService: Sendable {
 
     func outdatedDetailed(_ formula: String) async throws -> (outdated: Bool, stdout: String, stderr: String) {
         let brew = try requireBrew()
-        // Provide HOME explicitly — brew refuses to run without it. Inherit
-        // the rest from the launching process so brew can locate its Cellar
-        // and tap config like normal CLI.
+        // Provide HOME explicitly — brew refuses to run without it.
         var env = ProcessInfo.processInfo.environment
         if env["HOME"] == nil {
             env["HOME"] = NSHomeDirectory()
         }
         let result = try await shell.run(brew, args: ["outdated", "--quiet", formula], env: env, onLine: nil)
         let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (result.ok && !trimmed.isEmpty, result.stdout, result.stderr)
+        // IMPORTANT: brew outdated exits 1 when the formula IS outdated and 0
+        // when it isn't — opposite of the usual unix convention. So `result.ok`
+        // is the wrong gate; use stdout content as the sole signal.
+        return (!trimmed.isEmpty, result.stdout, result.stderr)
     }
 
     private func requireBrew() throws -> String {

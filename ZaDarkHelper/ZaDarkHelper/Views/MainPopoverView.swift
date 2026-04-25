@@ -129,22 +129,29 @@ struct MainPopoverView: View {
         }
     }
 
-    /// Button beside primary action — manually triggers `brew outdated zadark`.
-    /// Result reflected in hero status (becomes .updateAvailable if outdated).
+    /// Secondary capsule button beside the primary action — same height +
+    /// shape as ActionPillButton for unified design language. Bordered (not
+    /// prominent) so visual hierarchy stays clear.
     @ViewBuilder
     private var checkZaDarkButton: some View {
         Button {
             runCheckZaDarkUpdate()
         } label: {
-            if isCheckingZaDark {
-                ProgressView().controlSize(.small)
-            } else {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.callout)
+            HStack(spacing: 6) {
+                if isCheckingZaDark {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.callout)
+                }
             }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .contentShape(Capsule())
         }
         .buttonStyle(.bordered)
         .controlSize(.regular)
+        .clipShape(Capsule())
         .disabled(isCheckingZaDark || state.isBusy)
         .help("Kiểm tra cập nhật ZaDark")
     }

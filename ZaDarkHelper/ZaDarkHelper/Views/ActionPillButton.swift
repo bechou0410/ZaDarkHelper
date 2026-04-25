@@ -3,6 +3,9 @@ import SwiftUI
 /// Large capsule-shaped primary button. Action and label derived from current state.
 struct ActionPillButton: View {
     @Environment(AppState.self) private var state
+    /// External disable flag — used while sibling check buttons are running
+    /// so the user can't trigger a re-patch while a check is in flight.
+    var disabled: Bool = false
 
     var body: some View {
         Button {
@@ -25,7 +28,7 @@ struct ActionPillButton: View {
         .controlSize(.regular)
         .clipShape(Capsule())
         .tint(actionTint)
-        .disabled(isDisabled)
+        .disabled(isDisabled || disabled)
     }
 
     private func performAction() async {

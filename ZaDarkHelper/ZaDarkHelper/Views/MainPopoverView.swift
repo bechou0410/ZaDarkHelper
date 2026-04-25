@@ -56,7 +56,7 @@ struct MainPopoverView: View {
             StatusHeroCard(checkOverride: heroCheckOverride)
 
             HStack(spacing: 8) {
-                ActionPillButton()
+                ActionPillButton(disabled: isCheckingZaDark || isCheckingForUpdate)
                 checkZaDarkButton
             }
 

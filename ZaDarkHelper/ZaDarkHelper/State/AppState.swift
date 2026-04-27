@@ -67,6 +67,11 @@ final class AppState {
     /// (either disabled or marker absent). UI uses this to render a chip.
     var asarPatchActive: Bool = false
 
+    /// F5 — Accessibility permission denied flag. UI surfaces banner.
+    var accessibilityPermissionDenied: Bool = false
+    /// F5 — count of save dialogs detected this session (Phase 1 verification metric).
+    var saveDialogDetectionCount: Int = 0
+
     /// Invoked when AppState wants the UI to surface itself (popover opens).
     /// Set by `StatusBarController` at init. Fires on:
     ///   • newly detected helper update
@@ -101,6 +106,7 @@ final class AppState {
     private let workspace: WorkspaceObserver
     private let downloadWatcher = DownloadFolderWatcher()
     private let deferredUpdate = DeferredUpdateManager()
+    private let saveDialogWatcher = SaveDialogWatcher()
     private let orchestrator: ReinstallOrchestrator
     private let scheduler: UpdateScheduler
     private let prefsStorage: PreferencesStorage
@@ -154,6 +160,7 @@ final class AppState {
         startWatchers()
         probeAppManagementPermission()
         applyFilenameFixerPreference()
+        applySaveDialogWatcherPreference()
         NotificationService.registerCategories()
         // F3 — sweep stale DMGs left in /tmp from previous installs.
         HelperAutoUpdater.cleanupOrphanDMGs()
@@ -335,6 +342,11 @@ final class AppState {
 
         // F4 (deprecated) — toggle has no effect in v26.4.005+. Cleanup of
         // any prior injection happens at launch via cleanupDeprecatedAsarPatch.
+
+        // F5 — react to save-dialog watcher toggle.
+        if old.saveDialogWatcherEnabled != new.saveDialogWatcherEnabled {
+            applySaveDialogWatcherPreference()
+        }
     }
 
     // MARK: - F1: Filename Fixer
@@ -562,6 +574,45 @@ final class AppState {
     func applyAsarPatchIfEnabled() {
         // No-op. Kept for source compat with the call sites in install
         // flows; can be deleted in a future release once those are updated.
+    }
+
+    // MARK: - F5: Save dialog watcher (Phase 1, log-only)
+
+    /// Start/stop the AX-based save-dialog watcher per current preference.
+    /// Idempotent — safe to call from start() and updatePreferences().
+    func applySaveDialogWatcherPreference() {
+        if preferences.saveDialogWatcherEnabled {
+            saveDialogWatcher.onPermissionDenied = { [weak self] in
+                Task { @MainActor in
+                    self?.accessibilityPermissionDenied = true
+                    self?.appendSystemLog("AX permission từ chối — mở System Settings → Privacy → Accessibility")
+                }
+            }
+            saveDialogWatcher.onSavePanelDetected = { [weak self] panel in
+                Task { @MainActor in
+                    self?.handleSavePanelDetected(panel)
+                }
+            }
+            // Trigger system prompt the first time user enables the toggle.
+            // The function returns current state; permission may flip true
+            // later — start() re-checks via AXIsProcessTrusted.
+            _ = SaveDialogWatcher.requestAccessibilityPermission()
+            saveDialogWatcher.start()
+            accessibilityPermissionDenied = !SaveDialogWatcher.hasAccessibilityPermission()
+        } else {
+            saveDialogWatcher.stop()
+            accessibilityPermissionDenied = false
+        }
+    }
+
+    /// Phase 1 — just log what we found. Phase 2 (next release) will
+    /// also rewrite the field via SaveDialogWatcher.rewriteFilename.
+    private func handleSavePanelDetected(_ panel: SaveDialogWatcher.DetectedSavePanel) {
+        saveDialogDetectionCount += 1
+        let filename = panel.currentFilename
+        let suspect = filename.range(of: #"^gen-[a-z0-9]{1,4}-"#, options: [.regularExpression, .caseInsensitive]) != nil
+        let marker = suspect ? "✓ MATCH" : "(no prefix)"
+        appendSystemLog("[F5] Save dialog #\(saveDialogDetectionCount) detected \(marker): \"\(filename)\"")
     }
 
     func copyDiagnostics() -> String {

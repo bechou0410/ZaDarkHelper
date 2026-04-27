@@ -12,6 +12,13 @@ struct Preferences: Codable, Equatable {
     /// F1 — auto-rename `gen-h-*.{jpg,png,…}` files dropped into ~/Downloads by Zalo.
     var filenameFixerEnabled: Bool = true
 
+    /// F5 — Phase 1 (v26.4.006, log-only). Helper observes Zalo via macOS
+    /// Accessibility API; when save dialog appears, logs detected filename.
+    /// Purpose: verify our AX walker correctly finds the field BEFORE shipping
+    /// rewrite logic in Phase 2. Default OFF — user opts in, grants AX
+    /// permission, performs save once, reports back.
+    var saveDialogWatcherEnabled: Bool = false
+
     /// F4 — DEPRECATED in v26.4.005. The asar patch approach was fundamentally flawed:
     /// (1) `session.fromPartition(...)` requires `app.whenReady()` first; our hook
     /// ran too early and threw silently, (2) Zalo's popup-viewer save uses native

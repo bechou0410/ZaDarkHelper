@@ -77,6 +77,22 @@ struct PreferencesView: View {
                 // didn't work — Zalo uses native IPC for save, not Electron
                 // will-download. Toggle hidden; cleanup runs on launch.
 
+                // F5 — Phase 1 (BETA, log-only). User opts in, grants AX
+                // permission, performs save 1 lần để verify detection.
+                toggleRow(
+                    title: "Theo dõi save dialog (BETA, log-only)",
+                    subtitle: state.saveDialogDetectionCount > 0
+                        ? "Đã detect \(state.saveDialogDetectionCount) lần — xem log"
+                        : "Cần quyền Accessibility, chỉ ghi log để verify",
+                    systemImage: "doc.text.viewfinder",
+                    isOn: saveDialogWatcherBinding
+                )
+
+                if state.preferences.saveDialogWatcherEnabled,
+                   state.accessibilityPermissionDenied {
+                    accessibilityDeniedBanner
+                }
+
                 Divider().padding(.vertical, 2)
 
                 // F3 — Auto-install helper update on launch (opt-in).
@@ -275,6 +291,12 @@ struct PreferencesView: View {
             set: { v in mutate { $0.filenameFixerEnabled = v } }
         )
     }
+    private var saveDialogWatcherBinding: Binding<Bool> {
+        Binding(
+            get: { state.preferences.saveDialogWatcherEnabled },
+            set: { v in mutate { $0.saveDialogWatcherEnabled = v } }
+        )
+    }
 
     private var autoInstallBinding: Binding<Bool> {
         Binding(
@@ -290,6 +312,38 @@ struct PreferencesView: View {
     }
 
     // MARK: - TCC banner
+
+    /// F5 — banner shown when Accessibility permission is needed but denied.
+    /// Identical pattern to `tccDeniedBanner` but routes to AX pane.
+    @ViewBuilder
+    private var accessibilityDeniedBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "lock.shield")
+                .foregroundStyle(DesignTokens.warningOrange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cần quyền Accessibility")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(DesignTokens.warningOrange)
+                Text("System Settings → Privacy & Security → Accessibility → bật ZaDarkHelper")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Button("Mở System Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(DesignTokens.warningOrange.opacity(0.12))
+        )
+        .padding(.vertical, 4)
+    }
 
     /// Inline orange banner that appears under the toggle when macOS denies
     /// us access to ~/Downloads. Tapping the link opens System Settings.

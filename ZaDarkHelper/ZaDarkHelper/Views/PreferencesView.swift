@@ -73,6 +73,20 @@ struct PreferencesView: View {
                     .disabled(state.isBulkRenamingDownloads)
                 }
 
+                // F4 — asar patch toggle (advanced). Default ON. Strips the
+                // prefix at save dialog itself, so file saves with correct
+                // name from the start (FilenameFixer remains as fallback).
+                toggleRow(
+                    title: "Patch Zalo trực tiếp (advanced)",
+                    subtitle: state.asarPatchActive
+                        ? "Hook đang hoạt động — save dialog sẽ tên đúng"
+                        : "Áp khi cài/cập nhật ZaDark, không cần rename sau",
+                    systemImage: state.asarPatchActive
+                        ? "checkmark.shield.fill"
+                        : "shield",
+                    isOn: asarPatchBinding
+                )
+
                 Divider().padding(.vertical, 2)
 
                 // F3 — Auto-install helper update on launch (opt-in).
@@ -269,6 +283,12 @@ struct PreferencesView: View {
         Binding(
             get: { state.preferences.filenameFixerEnabled },
             set: { v in mutate { $0.filenameFixerEnabled = v } }
+        )
+    }
+    private var asarPatchBinding: Binding<Bool> {
+        Binding(
+            get: { state.preferences.asarPatchEnabled },
+            set: { v in mutate { $0.asarPatchEnabled = v } }
         )
     }
     private var autoInstallBinding: Binding<Bool> {

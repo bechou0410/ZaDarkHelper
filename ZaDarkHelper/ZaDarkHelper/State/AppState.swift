@@ -63,6 +63,10 @@ final class AppState {
     /// F2 — true while a health-check pass is running (used to disable button).
     var isRunningHealthCheck: Bool = false
 
+    /// F4 — last asar-patch injection result. true=patched, false=not patched
+    /// (either disabled or marker absent). UI uses this to render a chip.
+    var asarPatchActive: Bool = false
+
     /// Invoked when AppState wants the UI to surface itself (popover opens).
     /// Set by `StatusBarController` at init. Fires on:
     ///   • newly detected helper update
@@ -153,6 +157,9 @@ final class AppState {
         NotificationService.registerCategories()
         // F3 — sweep stale DMGs left in /tmp from previous installs.
         HelperAutoUpdater.cleanupOrphanDMGs()
+        // F4 — refresh patch status flag for UI; doesn't apply patch yet,
+        // that runs after install/upgrade flows where Zalo is guaranteed quit.
+        refreshAsarPatchStatus()
         Task {
             await refresh()
             await checkForHelperUpdate()
@@ -262,6 +269,7 @@ final class AppState {
             if let info = ZaloVersionProbe.read() {
                 self.prefsStorage.setLastPatchedZaloBuild(info.build)
             }
+            self.applyAsarPatchIfEnabled()
         }
     }
 
@@ -276,6 +284,7 @@ final class AppState {
             _ = try await self.orchestrator.upgradeZaDarkAndRePatch(
                 forceQuitZalo: self.preferences.forceQuitZaloDuringRePatch
             )
+            self.applyAsarPatchIfEnabled()
         }
     }
 
@@ -285,6 +294,7 @@ final class AppState {
                 trigger: trigger,
                 forceQuitZalo: self.preferences.forceQuitZaloDuringRePatch
             )
+            self.applyAsarPatchIfEnabled()
         }
     }
 
@@ -319,6 +329,12 @@ final class AppState {
         // F1 — react to filename-fixer toggle
         if old.filenameFixerEnabled != new.filenameFixerEnabled {
             applyFilenameFixerPreference()
+        }
+
+        // F4 — react to asar-patch toggle. Apply or remove patch immediately
+        // (only if Zalo is not running; otherwise asar is locked).
+        if old.asarPatchEnabled != new.asarPatchEnabled {
+            applyAsarPatchToggleChange()
         }
     }
 
@@ -520,6 +536,57 @@ final class AppState {
         await deferredUpdate.cancel()
     }
 
+    // MARK: - F4: Zalo asar patch injection
+
+    /// Cheap status check — read `bootstrap.js` first file from asar and
+    /// look for our marker. Updates `asarPatchActive`. Safe to call any time.
+    func refreshAsarPatchStatus() {
+        asarPatchActive = ZaloPatchInjector.isPatched()
+    }
+
+    /// Apply the asar patch if the preference is ON. Called after every
+    /// `cli.install` completes (manual install / upgrade / auto re-patch).
+    /// Silent on success; logs error if injection fails.
+    func applyAsarPatchIfEnabled() {
+        guard preferences.asarPatchEnabled else {
+            asarPatchActive = false
+            return
+        }
+        do {
+            let applied = try ZaloPatchInjector.applyPatch()
+            asarPatchActive = true
+            if applied {
+                appendSystemLog("Đã patch app.asar — save dialog sẽ bỏ tiền tố gen-* tự động.")
+            }
+        } catch {
+            asarPatchActive = false
+            appendSystemLog("Patch app.asar lỗi: \(error.localizedDescription)")
+        }
+    }
+
+    /// React to user flipping the asarPatchEnabled toggle. If turning ON,
+    /// apply patch immediately. If turning OFF, remove the marker block.
+    /// Both paths require Zalo not running — otherwise refusal is logged.
+    private func applyAsarPatchToggleChange() {
+        guard !ZaloVersionProbe.isRunning() else {
+            appendSystemLog("Đổi tuỳ chọn patch app.asar khi Zalo đang chạy — bỏ qua. Thoát Zalo rồi thử lại.")
+            return
+        }
+        if preferences.asarPatchEnabled {
+            applyAsarPatchIfEnabled()
+        } else {
+            do {
+                let removed = try ZaloPatchInjector.removePatch()
+                asarPatchActive = false
+                if removed {
+                    appendSystemLog("Đã gỡ patch app.asar.")
+                }
+            } catch {
+                appendSystemLog("Gỡ patch app.asar lỗi: \(error.localizedDescription)")
+            }
+        }
+    }
+
     func copyDiagnostics() -> String {
         let header = """
         ZaDark Helper diagnostics
@@ -621,6 +688,7 @@ final class AppState {
                             forceQuitZalo: self.preferences.forceQuitZaloDuringRePatch
                         )
                         self.appendSystemLog("Auto re-patch: \(outcome)")
+                        self.applyAsarPatchIfEnabled()
                         await self.refresh()
                         let relaunched: Bool
                         if case .rePatched(_, _, let r) = outcome { relaunched = r } else { relaunched = false }

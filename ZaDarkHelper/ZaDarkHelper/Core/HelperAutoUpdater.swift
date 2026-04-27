@@ -40,26 +40,60 @@ enum HelperAutoUpdater {
         release: GitHubReleaseChecker.Release,
         progress: (@Sendable (Double) -> Void)? = nil
     ) async throws {
+        let path = try await downloadOnly(release: release, progress: progress)
+        try await installFromDMG(path: path)
+    }
+
+    /// F3 — download the release DMG to /tmp without installing. Used by
+    /// `DeferredUpdateManager` to pre-fetch on launch and defer install
+    /// until Zalo quits.
+    static func downloadOnly(
+        release: GitHubReleaseChecker.Release,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> String {
         guard let asset = release.dmgAsset else {
             throw UpdateError.noDMGAsset
         }
-
-        // 1. Download to temp
-        let tmpDMG = try await download(
+        return try await download(
             from: asset.downloadURL,
             expectedSize: asset.sizeBytes,
+            destinationPath: deferredDMGPath(for: release.tagName),
             progress: progress
         )
+    }
 
-        // 2. Write updater script
-        let scriptPath = try writeUpdaterScript(dmgPath: tmpDMG)
-
-        // 3. Spawn detached
+    /// F3 — install a pre-downloaded DMG. Spawns the detached updater script
+    /// and terminates the app. Caller is responsible for ensuring the path
+    /// exists (e.g. it was just produced by `downloadOnly`).
+    static func installFromDMG(path: String) async throws {
+        let scriptPath = try writeUpdaterScript(dmgPath: path)
         try spawnDetached(scriptPath: scriptPath)
+        await MainActor.run { NSApp.terminate(nil) }
+    }
 
-        // 4. Quit app on main — updater takes over
-        await MainActor.run {
-            NSApp.terminate(nil)
+    /// F3 — naming convention for deferred-install DMGs in /tmp.
+    /// Tag-suffixed so we can tell stale ones apart on next launch.
+    static func deferredDMGPath(for tag: String) -> String {
+        let safeTag = tag.replacingOccurrences(of: "/", with: "_")
+        return "/tmp/ZaDarkHelper-deferred-\(safeTag).dmg"
+    }
+
+    /// F3 — sweep stale `/tmp/ZaDarkHelper-deferred-*.dmg` files left behind
+    /// from a previous session that exited before installing. We delete any
+    /// whose tag matches the running version (already updated) — others are
+    /// kept for resume by `DeferredUpdateManager`.
+    static func cleanupOrphanDMGs() {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: "/tmp") else { return }
+        let current = "v\(GitHubReleaseChecker.currentHelperVersion())"
+        for name in entries where name.hasPrefix("ZaDarkHelper-deferred-") && name.hasSuffix(".dmg") {
+            // ZaDarkHelper-deferred-v26.4.001.dmg → v26.4.001
+            let trimmed = name
+                .replacingOccurrences(of: "ZaDarkHelper-deferred-", with: "")
+                .replacingOccurrences(of: ".dmg", with: "")
+            if trimmed == current {
+                try? fm.removeItem(atPath: "/tmp/" + name)
+            }
         }
     }
 
@@ -68,6 +102,7 @@ enum HelperAutoUpdater {
     private static func download(
         from url: URL,
         expectedSize: Int,
+        destinationPath: String = "/tmp/ZaDarkHelper-update.dmg",
         progress: (@Sendable (Double) -> Void)?
     ) async throws -> String {
         var req = URLRequest(url: url)
@@ -79,8 +114,7 @@ enum HelperAutoUpdater {
             throw UpdateError.downloadFailed("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
         }
 
-        let destPath = "/tmp/ZaDarkHelper-update.dmg"
-        let destURL = URL(fileURLWithPath: destPath)
+        let destURL = URL(fileURLWithPath: destinationPath)
         try? FileManager.default.removeItem(at: destURL)
         do {
             try FileManager.default.moveItem(at: tempURL, to: destURL)
@@ -93,7 +127,7 @@ enum HelperAutoUpdater {
         progress?(1.0)
 
         _ = expectedSize   // reserved for future integrity check
-        return destPath
+        return destinationPath
     }
 
     private static func writeUpdaterScript(dmgPath: String) throws -> String {

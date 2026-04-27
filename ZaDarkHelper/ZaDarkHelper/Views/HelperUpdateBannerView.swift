@@ -106,6 +106,9 @@ struct HelperUpdateBannerView: View {
     private func runUpdate(release: GitHubReleaseChecker.Release) {
         phase = .updating
         Task {
+            // F3 — manual click cancels any deferred download so the two
+            // flows don't race against each other.
+            await state.cancelDeferredUpdate()
             do {
                 try await HelperAutoUpdater.performUpdate(release: release)
                 // performUpdate terminates the app on success; this line is unreached.

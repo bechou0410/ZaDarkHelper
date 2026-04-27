@@ -49,6 +49,20 @@ final class AppState {
     /// the hero spinner alone, not a banner flashing mid-check.
     var isCheckingForUpdate: Bool = false
 
+    /// F1 — banner shown when Downloads access is denied (TCC), so the user
+    /// can grant Full Disk Access. Persists until they retry successfully.
+    var downloadFolderAccessDenied: Bool = false
+    /// F1 — true while a bulk-rename pass is running (used to disable button).
+    var isBulkRenamingDownloads: Bool = false
+    /// F1 — last bulk-rename result (count + transient toast text). nil = none yet.
+    var lastBulkRenameCount: Int?
+
+    /// F2 — last health-check snapshot. When non-nil, MainPopoverView swaps the
+    /// hero slot for HealthCheckCard. User dismisses by tapping "Đóng".
+    var lastHealthCheck: HealthCheckSnapshot?
+    /// F2 — true while a health-check pass is running (used to disable button).
+    var isRunningHealthCheck: Bool = false
+
     /// Invoked when AppState wants the UI to surface itself (popover opens).
     /// Set by `StatusBarController` at init. Fires on:
     ///   • newly detected helper update
@@ -81,6 +95,8 @@ final class AppState {
     private let cli: ZaDarkCLI
     private let watcher: ZaloBundleWatcher
     private let workspace: WorkspaceObserver
+    private let downloadWatcher = DownloadFolderWatcher()
+    private let deferredUpdate = DeferredUpdateManager()
     private let orchestrator: ReinstallOrchestrator
     private let scheduler: UpdateScheduler
     private let prefsStorage: PreferencesStorage
@@ -133,6 +149,10 @@ final class AppState {
         didStart = true
         startWatchers()
         probeAppManagementPermission()
+        applyFilenameFixerPreference()
+        NotificationService.registerCategories()
+        // F3 — sweep stale DMGs left in /tmp from previous installs.
+        HelperAutoUpdater.cleanupOrphanDMGs()
         Task {
             await refresh()
             await checkForHelperUpdate()
@@ -291,9 +311,213 @@ final class AppState {
     }
 
     func updatePreferences(_ new: Preferences) {
+        let old = preferences
         preferences = new
         new.save()
         try? LoginItemService.set(enabled: new.launchAtLogin)
+
+        // F1 — react to filename-fixer toggle
+        if old.filenameFixerEnabled != new.filenameFixerEnabled {
+            applyFilenameFixerPreference()
+        }
+    }
+
+    // MARK: - F1: Filename Fixer
+
+    /// Start/stop the Downloads watcher according to current preference.
+    /// Idempotent — safe to call from start() and updatePreferences().
+    func applyFilenameFixerPreference() {
+        if preferences.filenameFixerEnabled {
+            downloadWatcher.onRenamed = { [weak self] event in
+                Task { @MainActor in self?.handleAutoRename(event: event) }
+            }
+            downloadWatcher.onTCCDenied = { [weak self] in
+                Task { @MainActor in
+                    self?.downloadFolderAccessDenied = true
+                    self?.appendSystemLog("Downloads bị chặn (TCC). Cấp Full Disk Access để dùng tính năng sửa tên.")
+                }
+            }
+            downloadWatcher.start()
+            // Reaching here without the TCC fallback firing → access is OK.
+            // Reset banner if it was previously stuck on.
+            if !downloadFolderAccessDenied {
+                // no-op — banner only set on actual denial
+            }
+        } else {
+            downloadWatcher.stop()
+            downloadFolderAccessDenied = false
+        }
+    }
+
+    private func handleAutoRename(event: DownloadFolderWatcher.RenameEvent) {
+        let originalName = event.originalURL.lastPathComponent
+        let newName = event.newURL.lastPathComponent
+        appendSystemLog("Sửa tên: \(originalName) → \(newName)")
+        Task {
+            await NotificationService.postRenameToast(
+                originalName: originalName,
+                fixedURL: event.newURL
+            )
+        }
+    }
+
+    /// Bulk-rename: scan ~/Downloads + rename every matching file. Called from
+    /// PreferencesView "Quét + sửa file cũ" button.
+    func scanDownloadsAndFix() async {
+        guard !isBulkRenamingDownloads else { return }
+        isBulkRenamingDownloads = true
+        defer { isBulkRenamingDownloads = false }
+
+        let folder = downloadWatcher.folderURL
+        let result = await Task.detached(priority: .utility) {
+            FilenameFixer.scanAndRename(in: folder)
+        }.value
+
+        lastBulkRenameCount = result.renamed
+        if result.renamed > 0 {
+            appendSystemLog("Quét Downloads: đã sửa \(result.renamed) tệp.")
+            toastMessage = "Đã sửa \(result.renamed) tệp."
+        } else {
+            appendSystemLog("Quét Downloads: không có tệp nào cần sửa.")
+            toastMessage = "Không có tệp nào cần sửa."
+        }
+        if !result.errors.isEmpty {
+            appendSystemLog("Quét Downloads: \(result.errors.count) lỗi (bỏ qua).")
+        }
+    }
+
+    /// Undo a previous rename — called by AppDelegate from the notification action.
+    /// Best-effort: if file was already moved/deleted, log + ignore.
+    func undoRename(currentPath: String, originalName: String) {
+        let url = URL(fileURLWithPath: currentPath)
+        do {
+            try FilenameFixer.undoRename(currentURL: url, originalName: originalName)
+            appendSystemLog("Hoàn tác đổi tên: \(url.lastPathComponent) → \(originalName)")
+            toastMessage = "Đã hoàn tác."
+        } catch {
+            appendSystemLog("Hoàn tác lỗi: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - F2: Diagnostics & Quick Actions
+
+    /// Run a full health check and store the snapshot. UI observes
+    /// `lastHealthCheck` to render `HealthCheckCard` in the hero slot.
+    func runHealthCheck() async {
+        guard !isRunningHealthCheck else { return }
+        isRunningHealthCheck = true
+        defer { isRunningHealthCheck = false }
+        appendSystemLog("Chạy kiểm tra hệ thống…")
+
+        let snap = await HealthChecker.runAll(brew: brew, cli: cli)
+        lastHealthCheck = snap
+        appendSystemLog("Kiểm tra hoàn tất: \(snap.okCount)/\(snap.results.count) ổn.")
+    }
+
+    /// Quit Zalo (politely; force-fallback) then relaunch.
+    func restartZalo() async {
+        await runAction(verb: "Khởi động lại Zalo") {
+            let wasRunning = ZaloVersionProbe.isRunning()
+            if wasRunning {
+                for app in ZaloVersionProbe.runningInstances() {
+                    app.terminate()
+                }
+                // Wait briefly for graceful shutdown — fall back to force-kill.
+                for _ in 0..<15 {
+                    if !ZaloVersionProbe.isRunning() { break }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+                if ZaloVersionProbe.isRunning() {
+                    for app in ZaloVersionProbe.runningInstances() {
+                        app.forceTerminate()
+                    }
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+            }
+            _ = await ZaloLauncher.launch()
+            self.appendSystemLog(wasRunning ? "Zalo đã khởi động lại." : "Zalo đã được mở.")
+        }
+    }
+
+    /// Open `~/Library/Application Support/Zalo` in Finder. Path is stable;
+    /// falls back to user's Library if Zalo subfolder doesn't exist yet.
+    func revealZaloDataFolder() {
+        let zaloPath = NSString(string: "~/Library/Application Support/Zalo").expandingTildeInPath
+        let fallback = NSString(string: "~/Library/Application Support").expandingTildeInPath
+        let target = FileManager.default.fileExists(atPath: zaloPath) ? zaloPath : fallback
+        if target == fallback {
+            appendSystemLog("Thư mục Zalo data chưa tồn tại — mở Application Support.")
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: target))
+    }
+
+    /// Markdown-formatted diagnostics ready to paste into a GitHub issue.
+    /// Replaces the older plaintext copyDiagnostics for users — keep both
+    /// since copyDiagnostics is referenced from MainPopoverView's
+    /// "Copy nhật ký" button (raw shell output) and this is the cleaner one
+    /// for issue templates.
+    func copyDiagnosticsMarkdown() -> String {
+        let helperVersion = GitHubReleaseChecker.currentHelperVersion()
+        let macOS = ProcessInfo.processInfo.operatingSystemVersionString
+        let zaloShort = zaloInfo?.shortVersion ?? "n/a"
+        let zaloBuild = zaloInfo?.build ?? "n/a"
+        let zadark = installedZaDarkVersion ?? "chưa cài"
+        let lastBuild = prefsStorage.lastPatchedZaloBuild() ?? "n/a"
+
+        var md = """
+        ## Environment
+        - macOS: \(macOS)
+        - ZaDarkHelper: v\(helperVersion)
+        - ZaDark CLI: \(zadark)
+        - Zalo: v\(zaloShort) (build \(zaloBuild))
+
+        ## Status
+        - Brew: \(hasBrew ? "✓" : "✗")
+        - app.asar: \(FileManager.default.fileExists(atPath: ZaloVersionProbe.asarPath) ? "✓" : "✗")
+        - app.asar.bak: \(hasBackup ? "✓" : "✗")
+        - App Management TCC: \(hasAppManagementPermission ? "granted" : "denied")
+        - Last patched Zalo build: \(lastBuild)
+
+        """
+
+        if let snap = lastHealthCheck {
+            md += "\n## Last health check (\(snap.okCount)/\(snap.results.count))\n"
+            for r in snap.results {
+                md += "- \(r.ok ? "✓" : "✗") **\(r.name)** — \(r.detail)\n"
+            }
+        }
+
+        let tsFormatter = DateFormatter()
+        tsFormatter.dateFormat = "HH:mm:ss"
+        let allSessions = sessions + (currentSession.map { [$0] } ?? [])
+        if let last = allSessions.last {
+            md += "\n## Latest log session\n```\n"
+            let status: String
+            switch last.finalStatus {
+            case .success: status = "✓"
+            case .error(let m): status = "✗ \(m)"
+            case .none: status = "…"
+            }
+            let dur = last.duration.map { String(format: " (%.1fs)", $0) } ?? ""
+            md += "[\(tsFormatter.string(from: last.startedAt))] \(last.verb)\(dur) \(status)\n"
+            for line in last.lines.suffix(50) {
+                let tag = line.stream == .stderr ? "ERR" : "OUT"
+                md += "  \(tag) | \(line.text)\n"
+            }
+            md += "```\n"
+        }
+
+        md += "\n## Reproduce steps\n1. (please fill in)\n"
+        return md
+    }
+
+    // MARK: - F3: Deferred helper update
+
+    /// Cancel any in-flight deferred download/ready state. Called when the
+    /// user clicks the manual "Cập nhật" button so the manual flow doesn't
+    /// race with the deferred install.
+    func cancelDeferredUpdate() async {
+        await deferredUpdate.cancel()
     }
 
     func copyDiagnostics() -> String {
@@ -342,6 +566,15 @@ final class AppState {
             Task { @MainActor in
                 self?.watcher.recheckNow()
                 await self?.refresh()
+            }
+        }
+        workspace.onZaloQuit = { [weak self] in
+            // F3 — try to install pending update when user closes Zalo.
+            Task { @MainActor in
+                guard let self else { return }
+                guard self.preferences.autoInstallHelperUpdate else { return }
+                self.appendSystemLog("Zalo đã thoát — kiểm tra cài đặt cập nhật helper.")
+                await self.deferredUpdate.installNowIfReady()
             }
         }
         workspace.onWake = { [weak self] in
@@ -462,6 +695,20 @@ final class AppState {
                 }
                 // Newly seen version → auto-open popover so the banner is visible.
                 onRequestSurface?()
+
+                // F3 — opt-in: pre-download in background so install is instant
+                // when Zalo quits (or immediately if user opted into force).
+                if preferences.autoInstallHelperUpdate {
+                    Task {
+                        await self.deferredUpdate.armDownload(release: latest)
+                        if self.preferences.autoInstallEvenWhenZaloRunning {
+                            self.appendSystemLog("Auto-install (force) — không chờ Zalo thoát.")
+                            await self.deferredUpdate.installNowIfReady()
+                        } else {
+                            self.appendSystemLog("Helper update v\(latest.tagName) đã tải — sẽ cài khi Zalo thoát.")
+                        }
+                    }
+                }
             }
         case .failed(let err):
             appendSystemLog("Helper update check lỗi: \(err.localizedDescription)")

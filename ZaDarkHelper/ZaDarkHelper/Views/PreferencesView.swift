@@ -49,6 +49,88 @@ struct PreferencesView: View {
                     warning: true
                 )
 
+                Divider().padding(.vertical, 2)
+
+                toggleRow(
+                    title: "Tự động sửa tên file Zalo",
+                    subtitle: "bỏ tiền tố \"gen-h-\" trong Downloads",
+                    systemImage: "wand.and.rays",
+                    isOn: filenameFixerBinding
+                )
+
+                if state.preferences.filenameFixerEnabled {
+                    if state.downloadFolderAccessDenied {
+                        tccDeniedBanner
+                    }
+                    menuButton(
+                        title: state.isBulkRenamingDownloads
+                            ? "Đang quét…"
+                            : "Quét + sửa file cũ trong Downloads",
+                        systemImage: "magnifyingglass"
+                    ) {
+                        Task { await state.scanDownloadsAndFix() }
+                    }
+                    .disabled(state.isBulkRenamingDownloads)
+                }
+
+                Divider().padding(.vertical, 2)
+
+                // F3 — Auto-install helper update on launch (opt-in).
+                toggleRow(
+                    title: "Tự động cài bản mới của ZaDarkHelper",
+                    subtitle: "tải nền + cài khi thoát Zalo",
+                    systemImage: "arrow.down.app.fill",
+                    isOn: autoInstallBinding
+                )
+
+                if state.preferences.autoInstallHelperUpdate {
+                    toggleRow(
+                        title: "Cài ngay không chờ Zalo thoát",
+                        subtitle: "có thể gián đoạn workflow",
+                        systemImage: "exclamationmark.triangle.fill",
+                        isOn: autoInstallForceBinding,
+                        warning: true
+                    )
+                }
+
+                Divider().padding(.vertical, 2)
+
+                // F2 — Diagnostics group. Read-only checks + safe quick actions.
+                sectionHeader("Chẩn đoán")
+                menuButton(
+                    title: state.isRunningHealthCheck
+                        ? "Đang kiểm tra…"
+                        : "Kiểm tra hệ thống",
+                    systemImage: "stethoscope"
+                ) {
+                    Task { await state.runHealthCheck() }
+                }
+                .disabled(state.isRunningHealthCheck)
+
+                menuButton(
+                    title: "Khởi động lại Zalo",
+                    systemImage: "arrow.clockwise.circle"
+                ) {
+                    Task { await state.restartZalo() }
+                }
+
+                menuButton(
+                    title: "Mở thư mục dữ liệu Zalo",
+                    systemImage: "folder"
+                ) {
+                    state.revealZaloDataFolder()
+                }
+
+                menuButton(
+                    title: "Copy chẩn đoán cho GitHub issue",
+                    systemImage: "doc.on.clipboard"
+                ) {
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(state.copyDiagnosticsMarkdown(), forType: .string)
+                    state.toastMessage = "Đã copy markdown chẩn đoán."
+                }
+
                 if let onReplayOnboarding {
                     Divider()
                         .padding(.vertical, 2)
@@ -183,10 +265,73 @@ struct PreferencesView: View {
             set: { v in mutate { $0.forceQuitZaloDuringRePatch = v } }
         )
     }
+    private var filenameFixerBinding: Binding<Bool> {
+        Binding(
+            get: { state.preferences.filenameFixerEnabled },
+            set: { v in mutate { $0.filenameFixerEnabled = v } }
+        )
+    }
+    private var autoInstallBinding: Binding<Bool> {
+        Binding(
+            get: { state.preferences.autoInstallHelperUpdate },
+            set: { v in mutate { $0.autoInstallHelperUpdate = v } }
+        )
+    }
+    private var autoInstallForceBinding: Binding<Bool> {
+        Binding(
+            get: { state.preferences.autoInstallEvenWhenZaloRunning },
+            set: { v in mutate { $0.autoInstallEvenWhenZaloRunning = v } }
+        )
+    }
+
+    // MARK: - TCC banner
+
+    /// Inline orange banner that appears under the toggle when macOS denies
+    /// us access to ~/Downloads. Tapping the link opens System Settings.
+    @ViewBuilder
+    private var tccDeniedBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "lock.shield")
+                .foregroundStyle(DesignTokens.warningOrange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cần quyền truy cập Downloads")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(DesignTokens.warningOrange)
+                Text("Mở System Settings → Privacy & Security → Files and Folders")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Button("Mở System Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(DesignTokens.warningOrange.opacity(0.12))
+        )
+        .padding(.vertical, 4)
+    }
 
     private func mutate(_ transform: (inout Preferences) -> Void) {
         var prefs = state.preferences
         transform(&prefs)
         state.updatePreferences(prefs)
+    }
+
+    /// Mini section header — uppercase caption used to delimit logical groups
+    /// inside the same DisclosureGroup (e.g. "Chẩn đoán").
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
     }
 }

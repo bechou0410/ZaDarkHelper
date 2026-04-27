@@ -1,15 +1,19 @@
 import AppKit
 import Foundation
 
-/// Observes NSWorkspace notifications so the app can react when Zalo launches.
-/// Fires `onZaloLaunch` opportunistically so we can re-read Zalo's Info.plist
-/// in case the user opened a freshly-updated Zalo without us catching an FSEvent.
+/// Observes NSWorkspace notifications so the app can react when Zalo launches
+/// or quits. Fires `onZaloLaunch` opportunistically so we can re-read Zalo's
+/// Info.plist in case the user opened a freshly-updated Zalo without us
+/// catching an FSEvent. `onZaloQuit` is used by `DeferredUpdateManager` (F3)
+/// to install a pre-downloaded helper update when Zalo exits.
 final class WorkspaceObserver: @unchecked Sendable {
 
     var onZaloLaunch: (@Sendable () -> Void)?
+    var onZaloQuit: (@Sendable () -> Void)?
     var onWake: (@Sendable () -> Void)?
 
     private var launchToken: NSObjectProtocol?
+    private var terminateToken: NSObjectProtocol?
     private var wakeToken: NSObjectProtocol?
 
     func start() {
@@ -21,8 +25,20 @@ final class WorkspaceObserver: @unchecked Sendable {
         ) { [weak self] note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   let id = app.bundleIdentifier else { return }
-            if id == ZaloVersionProbe.bundleIDFallback || id.lowercased().contains("zalo") {
+            if Self.isZalo(bundleID: id) {
                 self?.onZaloLaunch?()
+            }
+        }
+
+        terminateToken = nc.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  let id = app.bundleIdentifier else { return }
+            if Self.isZalo(bundleID: id) {
+                self?.onZaloQuit?()
             }
         }
 
@@ -38,9 +54,16 @@ final class WorkspaceObserver: @unchecked Sendable {
     func stop() {
         let nc = NSWorkspace.shared.notificationCenter
         if let t = launchToken { nc.removeObserver(t) }
+        if let t = terminateToken { nc.removeObserver(t) }
         if let t = wakeToken { nc.removeObserver(t) }
         launchToken = nil
+        terminateToken = nil
         wakeToken = nil
+    }
+
+    private static func isZalo(bundleID: String) -> Bool {
+        bundleID == ZaloVersionProbe.bundleIDFallback
+            || bundleID.lowercased().contains("zalo")
     }
 
     deinit { stop() }

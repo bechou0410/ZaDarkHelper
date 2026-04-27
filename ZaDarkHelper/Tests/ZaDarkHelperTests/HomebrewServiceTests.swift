@@ -23,14 +23,16 @@ final class HomebrewServiceTests: XCTestCase {
         let fake = ShellRunnerFake()
         fake.stub(argsContain: "outdated", stdout: "zadark\n")
         let svc = HomebrewService(shell: fake, brewPath: "/opt/homebrew/bin/brew")
-        XCTAssertTrue(try await svc.outdated("zadark"))
+        let outdated = try await svc.outdated("zadark")
+        XCTAssertTrue(outdated)
     }
 
     func test_outdated_falseWhenEmpty() async throws {
         let fake = ShellRunnerFake()
         fake.stub(argsContain: "outdated", stdout: "")
         let svc = HomebrewService(shell: fake, brewPath: "/opt/homebrew/bin/brew")
-        XCTAssertFalse(try await svc.outdated("zadark"))
+        let outdated = try await svc.outdated("zadark")
+        XCTAssertFalse(outdated)
     }
 
     func test_install_throwsOnNonZeroExit() async {

@@ -53,11 +53,18 @@ struct MainPopoverView: View {
             HelperUpdateBannerView()
                 .id(state.helperUpdate?.tagName ?? "no-update")
 
-            StatusHeroCard(checkOverride: heroCheckOverride)
+            // F2 — when a health-check snapshot exists, swap the hero slot
+            // for the diagnostics card. Mirrors the override pattern used for
+            // checkOverride so the popover keeps a single primary surface.
+            if state.lastHealthCheck != nil {
+                HealthCheckCard()
+            } else {
+                StatusHeroCard(checkOverride: heroCheckOverride)
 
-            HStack(spacing: 8) {
-                ActionPillButton(disabled: isCheckingZaDark || isCheckingForUpdate)
-                checkZaDarkButton
+                HStack(spacing: 8) {
+                    ActionPillButton(disabled: isCheckingZaDark || isCheckingForUpdate)
+                    checkZaDarkButton
+                }
             }
 
             secondaryRow

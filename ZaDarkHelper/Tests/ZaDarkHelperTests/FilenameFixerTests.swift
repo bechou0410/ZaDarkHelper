@@ -14,18 +14,30 @@ final class FilenameFixerTests: XCTestCase {
         XCTAssertEqual(FilenameFixer.target(for: "gen-h-anim.webp"), "anim.webp")
     }
 
+    /// Zalo cache convention uses `gen-{tag}-` where {tag} varies (h, n, …).
+    /// We accept any 1-4 alphanumeric tag.
+    func test_target_stripsAllGenLetterVariants() {
+        XCTAssertEqual(FilenameFixer.target(for: "gen-n-z776.jpg"), "z776.jpg")
+        XCTAssertEqual(FilenameFixer.target(for: "gen-x-foo.png"), "foo.png")
+        XCTAssertEqual(FilenameFixer.target(for: "gen-12-clip.mp4"), "clip.mp4")
+        XCTAssertEqual(FilenameFixer.target(for: "GEN-N-photo.jpg"), "photo.jpg")  // case-insensitive
+    }
+
     func test_target_returnsNilForDisallowedExtension() {
         XCTAssertNil(FilenameFixer.target(for: "gen-h-foo.txt"))
         XCTAssertNil(FilenameFixer.target(for: "gen-h-archive.zip"))
     }
 
     func test_target_returnsNilWhenPrefixDiffers() {
-        XCTAssertNil(FilenameFixer.target(for: "gen-x-foo.jpg"))
         XCTAssertNil(FilenameFixer.target(for: "foo.jpg"))
+        XCTAssertNil(FilenameFixer.target(for: "gen-foo.jpg"))           // missing tag dash
+        XCTAssertNil(FilenameFixer.target(for: "gen-toolong-foo.jpg"))   // tag > 4 chars
+        XCTAssertNil(FilenameFixer.target(for: "regular-photo.jpg"))
     }
 
     func test_target_returnsNilWhenBaseEmpty() {
         XCTAssertNil(FilenameFixer.target(for: "gen-h-.jpg"))
+        XCTAssertNil(FilenameFixer.target(for: "gen-n-.png"))
     }
 
     // MARK: - rename(at:)

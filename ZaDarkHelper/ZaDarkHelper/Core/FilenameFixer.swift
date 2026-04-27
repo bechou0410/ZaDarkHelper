@@ -1,11 +1,14 @@
 import Foundation
 
-/// Pure logic for stripping Zalo's `gen-h-` cache prefix from saved filenames.
+/// Pure logic for stripping Zalo's `gen-{x}-` cache prefix from saved filenames.
 ///
 /// When ZaDark patches Zalo's popup-viewer, saving an image from the preview
 /// uses Zalo's internal cache filename which has the form
-/// `gen-h-{originalId}.{ext}`. The 'gen-h-' is Zalo's cache convention,
-/// not a ZaDark feature. This struct undoes the prefix on the helper side.
+/// `gen-{tag}-{originalId}.{ext}` — observed variants include `gen-h-`,
+/// `gen-n-`, and others. Zalo's own parser uses `t.split("gen-")[1].split("-")[0]`
+/// confirming `{tag}` is one short segment of letters/digits. The prefix is
+/// Zalo's cache convention, not a ZaDark feature. This struct undoes it on
+/// the helper side.
 enum FilenameFixer {
 
     enum FixerError: Error, LocalizedError {
@@ -20,18 +23,26 @@ enum FilenameFixer {
     }
 
     /// Whitelist of media extensions Zalo saves. Keep tight to avoid false
-    /// positives on rare files that happen to start with `gen-h-`.
+    /// positives on rare files that happen to start with `gen-…-`.
     static let allowedExtensions: Set<String> = [
         "jpg", "jpeg", "png", "webp", "gif",
         "mp4", "mov", "m4v"
     ]
 
+    /// Matches `gen-{1-4 alphanumeric}-` at the start (case-insensitive).
+    /// Tight upper bound on tag length avoids matching long unrelated names.
+    private static let prefixRegex: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(pattern: #"^gen-[a-z0-9]{1,4}-"#, options: .caseInsensitive)
+    }()
+
     /// Returns the target filename (without prefix) if input matches the
     /// pattern, else nil.
     static func target(for filename: String) -> String? {
-        let lower = filename.lowercased()
-        guard lower.hasPrefix("gen-h-") else { return nil }
-        let stripped = String(filename.dropFirst("gen-h-".count))
+        let range = NSRange(filename.startIndex..., in: filename)
+        guard let match = prefixRegex.firstMatch(in: filename, range: range),
+              let r = Range(match.range, in: filename) else { return nil }
+        let stripped = String(filename[r.upperBound...])
 
         // Must have a recognized extension to qualify.
         let ext = (stripped as NSString).pathExtension.lowercased()

@@ -157,9 +157,11 @@ final class AppState {
         NotificationService.registerCategories()
         // F3 — sweep stale DMGs left in /tmp from previous installs.
         HelperAutoUpdater.cleanupOrphanDMGs()
-        // F4 — refresh patch status flag for UI; doesn't apply patch yet,
-        // that runs after install/upgrade flows where Zalo is guaranteed quit.
-        refreshAsarPatchStatus()
+        // F4 — DEPRECATED. Auto-cleanup any v26.4.004 patch on launch.
+        // The patch approach was fundamentally flawed (see Preferences doc);
+        // we silently remove it so users upgrading from v26.4.004 get back
+        // to a clean Zalo state without manual intervention.
+        cleanupDeprecatedAsarPatch()
         Task {
             await refresh()
             await checkForHelperUpdate()
@@ -331,11 +333,8 @@ final class AppState {
             applyFilenameFixerPreference()
         }
 
-        // F4 — react to asar-patch toggle. Apply or remove patch immediately
-        // (only if Zalo is not running; otherwise asar is locked).
-        if old.asarPatchEnabled != new.asarPatchEnabled {
-            applyAsarPatchToggleChange()
-        }
+        // F4 (deprecated) — toggle has no effect in v26.4.005+. Cleanup of
+        // any prior injection happens at launch via cleanupDeprecatedAsarPatch.
     }
 
     // MARK: - F1: Filename Fixer
@@ -536,55 +535,33 @@ final class AppState {
         await deferredUpdate.cancel()
     }
 
-    // MARK: - F4: Zalo asar patch injection
+    // MARK: - F4 cleanup (deprecated approach)
 
-    /// Cheap status check — read `bootstrap.js` first file from asar and
-    /// look for our marker. Updates `asarPatchActive`. Safe to call any time.
-    func refreshAsarPatchStatus() {
-        asarPatchActive = ZaloPatchInjector.isPatched()
-    }
-
-    /// Apply the asar patch if the preference is ON. Called after every
-    /// `cli.install` completes (manual install / upgrade / auto re-patch).
-    /// Silent on success; logs error if injection fails.
-    func applyAsarPatchIfEnabled() {
-        guard preferences.asarPatchEnabled else {
-            asarPatchActive = false
-            return
-        }
+    /// Remove any leftover v26.4.004 asar patch on launch. The hook never
+    /// worked (Zalo uses native IPC, not Electron will-download) and ran
+    /// too early (before app.whenReady). Cleanup is best-effort: skips if
+    /// Zalo is running (asar locked) — patch will get wiped naturally on
+    /// next `zadark install` anyway.
+    private func cleanupDeprecatedAsarPatch() {
+        asarPatchActive = false
+        guard !ZaloVersionProbe.isRunning() else { return }
+        guard ZaloPatchInjector.isPatched() else { return }
         do {
-            let applied = try ZaloPatchInjector.applyPatch()
-            asarPatchActive = true
-            if applied {
-                appendSystemLog("Đã patch app.asar — save dialog sẽ bỏ tiền tố gen-* tự động.")
+            let removed = try ZaloPatchInjector.removePatch()
+            if removed {
+                appendSystemLog("Đã gỡ patch app.asar v26.4.004 (deprecated).")
             }
         } catch {
-            asarPatchActive = false
-            appendSystemLog("Patch app.asar lỗi: \(error.localizedDescription)")
+            appendSystemLog("Gỡ patch deprecated lỗi: \(error.localizedDescription)")
         }
     }
 
-    /// React to user flipping the asarPatchEnabled toggle. If turning ON,
-    /// apply patch immediately. If turning OFF, remove the marker block.
-    /// Both paths require Zalo not running — otherwise refusal is logged.
-    private func applyAsarPatchToggleChange() {
-        guard !ZaloVersionProbe.isRunning() else {
-            appendSystemLog("Đổi tuỳ chọn patch app.asar khi Zalo đang chạy — bỏ qua. Thoát Zalo rồi thử lại.")
-            return
-        }
-        if preferences.asarPatchEnabled {
-            applyAsarPatchIfEnabled()
-        } else {
-            do {
-                let removed = try ZaloPatchInjector.removePatch()
-                asarPatchActive = false
-                if removed {
-                    appendSystemLog("Đã gỡ patch app.asar.")
-                }
-            } catch {
-                appendSystemLog("Gỡ patch app.asar lỗi: \(error.localizedDescription)")
-            }
-        }
+    /// Compatibility shim — old code paths in installZaDark/updateZaDark/
+    /// rePatchNow still call this. v26.4.005 makes it a no-op since the
+    /// patch is deprecated; preference defaults OFF for new users.
+    func applyAsarPatchIfEnabled() {
+        // No-op. Kept for source compat with the call sites in install
+        // flows; can be deleted in a future release once those are updated.
     }
 
     func copyDiagnostics() -> String {

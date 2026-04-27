@@ -12,10 +12,14 @@ struct Preferences: Codable, Equatable {
     /// F1 — auto-rename `gen-h-*.{jpg,png,…}` files dropped into ~/Downloads by Zalo.
     var filenameFixerEnabled: Bool = true
 
-    /// F4 — patch `app.asar/bootstrap.js` to strip prefix at save dialog.
-    /// Default ON: fixes the bug at source so dialog shows correct name from start
-    /// (FilenameFixer remains as fallback for race conditions / files saved before patch).
-    var asarPatchEnabled: Bool = true
+    /// F4 — DEPRECATED in v26.4.005. The asar patch approach was fundamentally flawed:
+    /// (1) `session.fromPartition(...)` requires `app.whenReady()` first; our hook
+    /// ran too early and threw silently, (2) Zalo's popup-viewer save uses native
+    /// IPC (`downloadWithMultiSrc`), not `webContents.downloadURL()` — so
+    /// `will-download` event never fires for the relevant save flow.
+    /// FilenameFixer (rename-after-save) remains the only working approach.
+    /// Default OFF + on-launch cleanup removes any previously-injected patch.
+    var asarPatchEnabled: Bool = false
 
     /// F3 — opt-in: download new helper releases on launch and install when Zalo quits.
     var autoInstallHelperUpdate: Bool = false

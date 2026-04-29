@@ -61,8 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         completionHandler([.banner, .sound])
     }
 
-    /// Routes notification actions back to AppState. Currently only the rename
-    /// undo action — but extensible for future actions on the same delegate.
+    /// Routes notification actions back to AppState.
+    ///   • `undoActionID` ("Hoàn tác" button)         — revert the rename
+    ///   • `UNNotificationDefaultActionIdentifier`    — user clicked the
+    ///     notification body → reveal the renamed file in Finder
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -70,11 +72,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     ) {
         let userInfo = response.notification.request.content.userInfo
         let action = response.actionIdentifier
+        let currentPath = userInfo[NotificationService.Keys.currentPath] as? String
+
         Task { @MainActor in
-            if action == NotificationService.undoActionID,
-               let path = userInfo[NotificationService.Keys.currentPath] as? String,
-               let originalName = userInfo[NotificationService.Keys.originalName] as? String {
-                self.appState?.undoRename(currentPath: path, originalName: originalName)
+            switch action {
+            case NotificationService.undoActionID:
+                if let path = currentPath,
+                   let originalName = userInfo[NotificationService.Keys.originalName] as? String {
+                    self.appState?.undoRename(currentPath: path, originalName: originalName)
+                }
+
+            case UNNotificationDefaultActionIdentifier:
+                // Default tap on the rename toast → reveal file in Finder.
+                if let path = currentPath {
+                    self.appState?.revealRenamedFile(currentPath: path)
+                }
+
+            default:
+                break   // dismiss / other → ignore
             }
             completionHandler()
         }

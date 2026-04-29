@@ -459,6 +459,25 @@ final class AppState {
         }
     }
 
+    /// Reveal the renamed file in Finder. Called when user clicks the rename
+    /// toast notification body. If the file no longer exists (user moved it),
+    /// fall back to opening the enclosing folder so the action still feels
+    /// useful instead of silently failing.
+    func revealRenamedFile(currentPath: String) {
+        let url = URL(fileURLWithPath: currentPath)
+        let fm = FileManager.default
+        if fm.fileExists(atPath: currentPath) {
+            // File still there → highlight it in Finder.
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+            appendSystemLog("Mở Finder tới: \(url.lastPathComponent)")
+        } else {
+            // File gone → open parent folder as fallback.
+            let parent = url.deletingLastPathComponent()
+            NSWorkspace.shared.open(parent)
+            appendSystemLog("Tệp đã di chuyển; mở thư mục \(parent.path)")
+        }
+    }
+
     // MARK: - F2: Diagnostics & Quick Actions
 
     /// Run a full health check and store the snapshot. UI observes

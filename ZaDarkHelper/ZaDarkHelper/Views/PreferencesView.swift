@@ -77,21 +77,10 @@ struct PreferencesView: View {
                 // didn't work — Zalo uses native IPC for save, not Electron
                 // will-download. Toggle hidden; cleanup runs on launch.
 
-                // F5 — Phase 1 (BETA, log-only). User opts in, grants AX
-                // permission, performs save 1 lần để verify detection.
-                toggleRow(
-                    title: "Theo dõi save dialog (BETA, log-only)",
-                    subtitle: state.saveDialogDetectionCount > 0
-                        ? "Đã detect \(state.saveDialogDetectionCount) lần — xem log"
-                        : "Cần quyền Accessibility, chỉ ghi log để verify",
-                    systemImage: "doc.text.viewfinder",
-                    isOn: saveDialogWatcherBinding
-                )
-
-                if state.preferences.saveDialogWatcherEnabled,
-                   state.accessibilityPermissionDenied {
-                    accessibilityDeniedBanner
-                }
+                // F5 (deprecated v26.4.007): save-dialog AX watcher Phase 1
+                // didn't reveal anything actionable — Zalo's save flow
+                // bypasses NSSavePanel for popup-viewer downloads, so the
+                // observer never fired. Toggle hidden; cleanup runs on launch.
 
                 Divider().padding(.vertical, 2)
 

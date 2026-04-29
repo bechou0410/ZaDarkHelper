@@ -30,13 +30,14 @@ enum HealthChecker {
         cli: ZaDarkCLI,
         fileManager: FileManager = .default
     ) async -> HealthCheckSnapshot {
-        async let cliResult     = checkZaDarkCLI(cli: cli)
-        async let asarResult    = checkZaloBundle(fileManager: fileManager)
-        async let backupResult  = checkBackup(fileManager: fileManager)
-        async let tapResult     = checkTap(brew: brew)
-        async let tccResult     = checkAppManagement(fileManager: fileManager)
+        async let cliResult       = checkZaDarkCLI(cli: cli)
+        async let asarResult      = checkZaloBundle(fileManager: fileManager)
+        async let backupResult    = checkBackup(fileManager: fileManager)
+        async let tapResult       = checkTap(brew: brew)
+        async let tccResult       = checkAppManagement(fileManager: fileManager)
+        async let codesignResult  = checkCodesign()
 
-        let results = await [cliResult, asarResult, backupResult, tapResult, tccResult]
+        let results = await [cliResult, asarResult, backupResult, tapResult, tccResult, codesignResult]
         return HealthCheckSnapshot(timestamp: .now, results: results)
     }
 
@@ -127,6 +128,29 @@ enum HealthChecker {
                 icon: icon
             )
         }
+    }
+
+    /// F6 — verify Zalo bundle codesign. After ZaDark patches `app.asar`,
+    /// the bundle's signature breaks; helper auto-resigns adhoc but if the
+    /// resign step ever fails, macOS Gatekeeper blocks launch from Finder/Dock.
+    private static func checkCodesign() async -> HealthResult {
+        let id = "codesign"
+        let name = "Zalo codesign"
+        let icon = "checkmark.seal"
+        guard FileManager.default.fileExists(atPath: ZaloVersionProbe.bundlePath) else {
+            return HealthResult(id: id, name: name, ok: true,
+                                detail: "Bỏ qua (chưa có Zalo)", icon: icon)
+        }
+        let valid = await withTimeout(detailOnTimeout: false) {
+            await ZaloRepairer.verifyCodesign()
+        }
+        return HealthResult(
+            id: id, name: name, ok: valid,
+            detail: valid
+                ? "Hợp lệ — Finder/Dock mở được"
+                : "Mismatch — chạy 'Cài lại ZaDark' để re-sign",
+            icon: icon
+        )
     }
 
     // MARK: - Timeout helper

@@ -160,7 +160,14 @@ final class AppState {
         startWatchers()
         probeAppManagementPermission()
         applyFilenameFixerPreference()
-        applySaveDialogWatcherPreference()
+        // F5 deprecated v26.4.007 — force-disable any leftover toggle from v26.4.006
+        // and stop the watcher (no-op if never started).
+        if preferences.saveDialogWatcherEnabled {
+            var p = preferences
+            p.saveDialogWatcherEnabled = false
+            updatePreferences(p)
+            appendSystemLog("Đã tắt save-dialog watcher (deprecated v26.4.007).")
+        }
         NotificationService.registerCategories()
         // F3 — sweep stale DMGs left in /tmp from previous installs.
         HelperAutoUpdater.cleanupOrphanDMGs()
@@ -274,11 +281,37 @@ final class AppState {
             }
             try await self.brew.tap("quaric/zadark", onLine: self.loggingSink)
             try await self.brew.install("zadark", onLine: self.loggingSink)
+
+            // F6 — protect against stale .bak left by a prior install on
+            // a now-Squirrel-updated Zalo. orchestrator.rePatchIfNeeded
+            // already does this; first-time install path does it manually.
+            if let info = ZaloVersionProbe.read() {
+                _ = ZaloRepairer.removeStaleBackupIfNeeded(
+                    currentBuild: info.build,
+                    lastPatchedBuild: self.prefsStorage.lastPatchedZaloBuild()
+                )
+            }
+
             try await self.cli.install(onLine: self.loggingSink)
+
             if let info = ZaloVersionProbe.read() {
                 self.prefsStorage.setLastPatchedZaloBuild(info.build)
             }
             self.applyAsarPatchIfEnabled()
+
+            // F6 — adhoc re-sign so Finder/Dock can launch the patched bundle.
+            await self.runAdhocResignBestEffort()
+        }
+    }
+
+    /// AppState mirror of `ReinstallOrchestrator.runAdhocResignBestEffort`.
+    /// Used by direct cli.install path (installZaDark first-time flow).
+    private func runAdhocResignBestEffort() async {
+        do {
+            try await ZaloRepairer.adhocResign(onLine: loggingSink)
+            appendSystemLog("Đã ký lại Zalo (adhoc + runtime).")
+        } catch {
+            appendSystemLog("Cảnh báo: ký lại Zalo lỗi — \(error.localizedDescription)")
         }
     }
 

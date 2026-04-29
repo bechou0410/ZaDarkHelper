@@ -12,11 +12,11 @@ struct Preferences: Codable, Equatable {
     /// F1 — auto-rename `gen-h-*.{jpg,png,…}` files dropped into ~/Downloads by Zalo.
     var filenameFixerEnabled: Bool = true
 
-    /// F5 — Phase 1 (v26.4.006, log-only). Helper observes Zalo via macOS
-    /// Accessibility API; when save dialog appears, logs detected filename.
-    /// Purpose: verify our AX walker correctly finds the field BEFORE shipping
-    /// rewrite logic in Phase 2. Default OFF — user opts in, grants AX
-    /// permission, performs save once, reports back.
+    /// F5 — DEPRECATED v26.4.007. Phase 1 verification revealed Zalo's
+    /// popup-viewer save flow bypasses NSSavePanel entirely (auto-saves to
+    /// Downloads with cache filename), so AX-based interception was never
+    /// going to work. Toggle hidden in UI; flag remains for backwards
+    /// compatibility — auto-forced to false at launch.
     var saveDialogWatcherEnabled: Bool = false
 
     /// F4 — DEPRECATED in v26.4.005. The asar patch approach was fundamentally flawed:

@@ -68,12 +68,39 @@ actor ReinstallOrchestrator {
             }
         }
 
+        // F6 — pre-install: detect stale .bak from a Zalo Squirrel update
+        // since our last patch. If stale, remove it so ZaDark CLI patches
+        // the CURRENT Zalo asar instead of rolling back to obsolete backup.
+        if ZaloRepairer.removeStaleBackupIfNeeded(currentBuild: info.build,
+                                                  lastPatchedBuild: lastPatchedBuild) {
+            logSink(ShellLine(stream: .stdout, text:
+                "[helper] Backup app.asar.bak stale (Zalo updated qua Squirrel) — đã xoá để tránh rollback."))
+        }
+
         try await cli.install(onLine: logSink)
+
+        // F6 — post-install: adhoc re-sign so macOS Gatekeeper accepts the
+        // patched bundle. Without this, Finder/Dock shows "Zalo bị hỏng".
+        await runAdhocResignBestEffort()
 
         prefsStorage.setLastPatchedZaloBuild(info.build)
         let zadarkVer = try? await cli.version()
         let relaunched = wasRunning ? await relaunchZalo() : false
         return .rePatched(zaloBuild: info.build, zadarkVersion: zadarkVer, relaunched: relaunched)
+    }
+
+    /// Run codesign re-sign without throwing — failure here is non-fatal
+    /// (Zalo may still launch via terminal `open`; user can manually run
+    /// the codesign command if Gatekeeper blocks). Always log outcome.
+    private func runAdhocResignBestEffort() async {
+        do {
+            try await ZaloRepairer.adhocResign(onLine: logSink)
+            logSink(ShellLine(stream: .stdout, text:
+                "[helper] Đã ký lại Zalo (adhoc + runtime) — Finder/Dock mở được."))
+        } catch {
+            logSink(ShellLine(stream: .stderr, text:
+                "[helper] Cảnh báo: ký lại Zalo lỗi — \(error.localizedDescription). Có thể Gatekeeper sẽ chặn từ Finder/Dock; mở qua Terminal `open Zalo` hoặc restart Mac để clear cache."))
+        }
     }
 
     /// Update the Homebrew formula, then re-patch with the new binary.
@@ -102,7 +129,16 @@ actor ReinstallOrchestrator {
             }
         }
 
+        // F6 — same stale-backup + adhoc-resign protection as in rePatchIfNeeded.
+        if ZaloRepairer.removeStaleBackupIfNeeded(currentBuild: info.build,
+                                                  lastPatchedBuild: prefsStorage.lastPatchedZaloBuild()) {
+            logSink(ShellLine(stream: .stdout, text:
+                "[helper] Backup app.asar.bak stale — đã xoá."))
+        }
+
         try await cli.install(onLine: logSink)
+        await runAdhocResignBestEffort()
+
         prefsStorage.setLastPatchedZaloBuild(info.build)
         let relaunched = wasRunning ? await relaunchZalo() : false
         return .upgradedAndRePatched(from: before, to: after, zaloBuild: info.build, relaunched: relaunched)

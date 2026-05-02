@@ -32,9 +32,26 @@ enum ZaloRepairer {
         }
     }
 
-    /// Stale = `.bak` exists but the last patched Zalo build (recorded by
-    /// helper) differs from the current bundle build. Indicates Squirrel
-    /// auto-update happened between two helper sessions.
+    /// Always remove `.bak` before any helper-driven `zadark install`, except
+    /// on the very first install (where helper hasn't yet taken ownership).
+    ///
+    /// Why unconditional after first install:
+    ///   ZaDark CLI's install flow ALWAYS does a rollback when both `.asar`
+    ///   and `.bak` exist: `.bak` → `.asar`, then patches → repacks. If `.bak`
+    ///   captured pre-Squirrel-update Zalo content, the rollback overwrites
+    ///   the new Squirrel-updated `.asar` with stale content. Result: bundle
+    ///   has OLD Zalo asar + NEW Electron Frameworks → crash on launch
+    ///   (`Library not loaded` / Team ID mismatch).
+    ///
+    ///   The `lastPatchedBuild == currentBuild` shortcut from v26.4.007 was
+    ///   wrong — helper updates lastPatchedBuild after every install regardless
+    ///   of whether the content actually got refreshed, so the comparison can
+    ///   trivially match while `.bak` is silently stale.
+    ///
+    /// Trade-off: removing `.bak` means `zadark uninstall` can no longer
+    /// restore the original Zalo. That's acceptable here — user's recovery
+    /// path for an unwanted ZaDark is now "reinstall Zalo from VNG", which
+    /// is what they'd need to do anyway after a stale-`.bak` corruption.
     ///
     /// Returns true if `.bak` was removed.
     @discardableResult
@@ -46,15 +63,10 @@ enum ZaloRepairer {
         let bakPath = ZaloVersionProbe.asarBackupPath
         guard fileManager.fileExists(atPath: bakPath) else { return false }
 
-        // First-time install (no recorded prior patch) — keep .bak as fresh
-        // (it's whatever ZaDark just made; not stale).
-        guard let last = lastPatchedBuild else { return false }
+        // First-time install — keep .bak so ZaDark uninstall has a valid
+        // restore point at least once. Subsequent installs delete it.
+        guard lastPatchedBuild != nil else { return false }
 
-        // Builds match → patches are still valid for current Zalo.
-        if last == currentBuild { return false }
-
-        // Mismatch → Zalo updated since we last patched. .bak is from old
-        // version → ZaDark's rollback would corrupt the current bundle.
         try? fileManager.removeItem(atPath: bakPath)
         return true
     }

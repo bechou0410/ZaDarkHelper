@@ -19,8 +19,37 @@ final class FilenameFixerTests: XCTestCase {
     func test_target_stripsAllGenLetterVariants() {
         XCTAssertEqual(FilenameFixer.target(for: "gen-n-z776.jpg"), "z776.jpg")
         XCTAssertEqual(FilenameFixer.target(for: "gen-x-foo.png"), "foo.png")
+        XCTAssertEqual(FilenameFixer.target(for: "gen-o-bar.jpg"), "bar.jpg")    // user-reported variant
         XCTAssertEqual(FilenameFixer.target(for: "gen-12-clip.mp4"), "clip.mp4")
+        XCTAssertEqual(FilenameFixer.target(for: "gen-h1-mix.png"), "mix.png")   // alphanumeric mix
+        XCTAssertEqual(FilenameFixer.target(for: "gen-1234-edge.jpg"), "edge.jpg") // tag at 4-char limit
         XCTAssertEqual(FilenameFixer.target(for: "GEN-N-photo.jpg"), "photo.jpg")  // case-insensitive
+    }
+
+    /// Real-world Zalo filenames mix long underscore-separated IDs with the
+    /// `gen-{tag}-` prefix. Verify the regex doesn't over-match on the inner
+    /// dashes that don't exist in Zalo's IDs (Zalo uses underscore separators).
+    func test_target_handlesRealZaloFilenames() {
+        let cases: [(String, String)] = [
+            ("gen-h-z7765451534122_451de5c3bcfeb46775a1ab99bd97a3a6.jpg",
+             "z7765451534122_451de5c3bcfeb46775a1ab99bd97a3a6.jpg"),
+            ("gen-n-z7766965098045_57cac0ec92f4bc2457d419708a677567.jpg",
+             "z7766965098045_57cac0ec92f4bc2457d419708a677567.jpg"),
+            ("gen-o-z7767015538037_8be6c76d2d011fde0d5cf53b591801a6.jpg",
+             "z7767015538037_8be6c76d2d011fde0d5cf53b591801a6.jpg")
+        ]
+        for (input, expected) in cases {
+            XCTAssertEqual(FilenameFixer.target(for: input), expected, "input=\(input)")
+        }
+    }
+
+    /// Every extension on the whitelist should match — guards against
+    /// accidental whitelist regression.
+    func test_target_acceptsAllAllowedExtensions() {
+        for ext in ["jpg", "jpeg", "png", "webp", "gif", "mp4", "mov", "m4v"] {
+            XCTAssertEqual(FilenameFixer.target(for: "gen-h-x.\(ext)"), "x.\(ext)",
+                           "extension \(ext) should be allowed")
+        }
     }
 
     func test_target_returnsNilForDisallowedExtension() {
@@ -81,6 +110,19 @@ final class FilenameFixerTests: XCTestCase {
         }
     }
 
+    /// Calling rename on a file whose name doesn't carry the prefix is a
+    /// pure no-op (returns nil, file untouched). Verifies idempotency when
+    /// helper retries after a successful prior rename.
+    func test_rename_isIdempotentOnAlreadyClean() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("photo.jpg")
+        try Data("x".utf8).write(to: url)
+
+        XCTAssertNil(try FilenameFixer.rename(at: url))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
     // MARK: - undoRename(currentURL:originalName:)
 
     func test_undoRename_revertsFile() throws {
@@ -110,6 +152,31 @@ final class FilenameFixerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("b.png").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("regular.jpg").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("gen-h-c.txt").path))
+    }
+
+    /// Bulk scan must surface conflict errors without aborting the rest of
+    /// the work. One file can't rename (dest already exists), the other
+    /// still completes successfully.
+    func test_scanAndRename_partialFailureSurfacesError() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // gen-h-conflict.jpg can't rename — conflict.jpg already exists.
+        try Data("x".utf8).write(to: dir.appendingPathComponent("gen-h-conflict.jpg"))
+        try Data("y".utf8).write(to: dir.appendingPathComponent("conflict.jpg"))
+        // gen-h-clean.jpg renames cleanly.
+        try Data("z".utf8).write(to: dir.appendingPathComponent("gen-h-clean.jpg"))
+
+        let result = FilenameFixer.scanAndRename(in: dir)
+        XCTAssertEqual(result.renamed, 1, "only the conflict-free file should rename")
+        XCTAssertEqual(result.errors.count, 1)
+        if case FilenameFixer.FixerError.conflict? = result.errors.first as? FilenameFixer.FixerError {
+            // expected
+        } else {
+            XCTFail("Expected .conflict in errors, got \(result.errors)")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("clean.jpg").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("gen-h-conflict.jpg").path),
+                      "conflicting source should remain untouched")
     }
 
     // MARK: - helpers

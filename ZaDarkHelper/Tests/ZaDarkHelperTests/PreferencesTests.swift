@@ -16,6 +16,9 @@ final class PreferencesTests: XCTestCase {
         XCTAssertTrue(p.autoRePatchOnZaloUpdate)
         XCTAssertTrue(p.notifyOnZaDarkUpdate)
         XCTAssertFalse(p.forceQuitZaloDuringRePatch)
+        // F1: filename fixer is on by default; rename toast is OFF (added v26.5.004).
+        XCTAssertTrue(p.filenameFixerEnabled)
+        XCTAssertFalse(p.notifyOnFilenameRename)
     }
 
     func test_saveAndLoad_roundTrips() {

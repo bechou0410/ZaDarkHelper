@@ -126,15 +126,23 @@ enum ZaloRepairer {
         return dest
     }
 
-    /// Lightweight verify — used by HealthChecker. Returns true if codesign
-    /// reports valid. Caller doesn't care about adhoc vs VNG, just whether
-    /// macOS will allow launch.
+    /// Lightweight verify — used by HealthChecker.
+    ///
+    /// Verifies the Electron Framework signature instead of the whole bundle.
+    /// Whole-bundle verify legitimately fails after ZaDark patches (the
+    /// `file added: app.asar.bak` and `file modified: app.asar` errors are
+    /// expected — VNG's resource seal can't cover ZaDark's modifications).
+    /// dyld uses the Framework signature to gate library loads at launch
+    /// time, so Framework-level verify is the actual "can Zalo launch?"
+    /// signal we care about.
     static func verifyCodesign(
         shell: ShellRunning = ShellRunner()
     ) async -> Bool {
+        let path = ZaloVersionProbe.bundlePath
+            + "/Contents/Frameworks/Electron Framework.framework"
         let result = try? await shell.run(
             "/usr/bin/codesign",
-            args: ["--verify", ZaloVersionProbe.bundlePath],
+            args: ["--verify", path],
             env: nil,
             onLine: nil
         )

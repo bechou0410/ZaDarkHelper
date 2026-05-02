@@ -130,12 +130,12 @@ enum HealthChecker {
         }
     }
 
-    /// F6 — verify Zalo bundle codesign. After ZaDark patches `app.asar`,
-    /// the bundle's signature breaks; helper auto-resigns adhoc but if the
-    /// resign step ever fails, macOS Gatekeeper blocks launch from Finder/Dock.
+    /// F6 — verify Zalo can launch by checking the Electron Framework's
+    /// codesign (dyld uses this at launch). Whole-bundle verify expectedly
+    /// fails after ZaDark patches `app.asar`, so we don't run that.
     private static func checkCodesign() async -> HealthResult {
         let id = "codesign"
-        let name = "Zalo codesign"
+        let name = "Zalo launchable"
         let icon = "checkmark.seal"
         guard FileManager.default.fileExists(atPath: ZaloVersionProbe.bundlePath) else {
             return HealthResult(id: id, name: name, ok: true,
@@ -147,8 +147,8 @@ enum HealthChecker {
         return HealthResult(
             id: id, name: name, ok: valid,
             detail: valid
-                ? "Hợp lệ — Finder/Dock mở được"
-                : "Mismatch — chạy 'Cài lại ZaDark' để re-sign",
+                ? "Frameworks codesign hợp lệ — Zalo mở được"
+                : "Frameworks codesign hỏng — chạy 'Cài lại ZaDark' để re-sign",
             icon: icon
         )
     }

@@ -29,6 +29,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @MainActor private var statusBar: StatusBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Skip all helper launch logic when running under XCTest. The test
+        // bundle uses the helper as its TEST_HOST, which means every test
+        // run boots the full app — including DownloadFolderWatcher
+        // (enumerates ~/Downloads → Downloads TCC prompt) and
+        // probeAppManagementPermission (opens app.asar → App Management
+        // TCC prompt). Neither is needed for unit tests; skipping keeps
+        // `xcodebuild test` silent.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return
+        }
+
         // Become the notification delegate so we can receive action callbacks
         // (e.g. the "Hoàn tác" button on the rename toast).
         UNUserNotificationCenter.current().delegate = self

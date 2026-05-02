@@ -12,6 +12,12 @@ struct Preferences: Codable, Equatable {
     /// F1 — auto-rename `gen-h-*.{jpg,png,…}` files dropped into ~/Downloads by Zalo.
     var filenameFixerEnabled: Bool = true
 
+    /// F1 (v26.5.004) — show macOS notification banner each time helper renames
+    /// a file. Default OFF: rename happens silently, user just sees the
+    /// final name in Finder. Turn ON to opt into per-rename toast (with
+    /// "Hoàn tác" button + tap-to-reveal).
+    var notifyOnFilenameRename: Bool = false
+
     /// F5 — DEPRECATED v26.4.007. Phase 1 verification revealed Zalo's
     /// popup-viewer save flow bypasses NSSavePanel entirely (auto-saves to
     /// Downloads with cache filename), so AX-based interception was never

@@ -62,6 +62,12 @@ struct PreferencesView: View {
                     if state.downloadFolderAccessDenied {
                         tccDeniedBanner
                     }
+                    toggleRow(
+                        title: "Báo thông báo mỗi lần đổi tên",
+                        subtitle: "tắt = sửa thầm, bật = banner + nút Hoàn tác",
+                        systemImage: "bell.badge",
+                        isOn: notifyOnRenameBinding
+                    )
                     menuButton(
                         title: state.isBulkRenamingDownloads
                             ? "Đang quét…"
@@ -278,6 +284,12 @@ struct PreferencesView: View {
         Binding(
             get: { state.preferences.filenameFixerEnabled },
             set: { v in mutate { $0.filenameFixerEnabled = v } }
+        )
+    }
+    private var notifyOnRenameBinding: Binding<Bool> {
+        Binding(
+            get: { state.preferences.notifyOnFilenameRename },
+            set: { v in mutate { $0.notifyOnFilenameRename = v } }
         )
     }
     private var saveDialogWatcherBinding: Binding<Bool> {

@@ -413,6 +413,10 @@ final class AppState {
         let originalName = event.originalURL.lastPathComponent
         let newName = event.newURL.lastPathComponent
         appendSystemLog("Sửa tên: \(originalName) → \(newName)")
+
+        // Toast is opt-in (default OFF). Logged in session log regardless so
+        // users can audit what was renamed via Health Check / diagnostics.
+        guard preferences.notifyOnFilenameRename else { return }
         Task {
             await NotificationService.postRenameToast(
                 originalName: originalName,

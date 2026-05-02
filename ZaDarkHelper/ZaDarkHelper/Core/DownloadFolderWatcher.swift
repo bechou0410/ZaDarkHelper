@@ -69,7 +69,10 @@ final class DownloadFolderWatcher: @unchecked Sendable {
             &context,
             paths,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            0.5,
+            // 50ms: low FSEvents coalescing latency so we react ASAP after
+            // Zalo finishes writing. NoDefer flag below ensures the FIRST
+            // event fires immediately without waiting for the latency window.
+            0.05,
             flags
         ) else { return }
 
@@ -100,21 +103,29 @@ final class DownloadFolderWatcher: @unchecked Sendable {
         debounceWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.processFolder() }
         debounceWork = work
-        queue.asyncAfter(deadline: .now() + 0.5, execute: work)
+        // 100ms debounce: groups Zalo's multi-chunk writes into one scan
+        // without adding noticeable latency. Combined with FSEvents 50ms
+        // coalescing → file save → rename in ~150-200ms total.
+        queue.asyncAfter(deadline: .now() + 0.1, execute: work)
     }
 
     private func processFolder() {
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(
             at: folderURL,
-            includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey],
+            includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
         ) else { return }
 
         for url in contents {
             guard FilenameFixer.target(for: url.lastPathComponent) != nil else { continue }
-            // Skip if file is still being written (size changing within 200ms).
-            if isFileStillWriting(url: url) { continue }
+
+            // No "still writing" check: macOS `rename(2)` only swaps the
+            // directory entry — the source app's open file descriptor keeps
+            // writing into the same inode, so subsequent bytes land in the
+            // renamed file. Safe to rename mid-write. Removing the 200ms
+            // probe shaved >200ms off the rename latency (the dominant cost
+            // before this change).
 
             do {
                 if let newURL = try FilenameFixer.rename(at: url) {
@@ -125,16 +136,5 @@ final class DownloadFolderWatcher: @unchecked Sendable {
                 // later if needed.
             }
         }
-    }
-
-    /// Heuristic: if the file's size changed within a 200ms window, treat as
-    /// still being written. Avoids racing the source app mid-write.
-    private func isFileStillWriting(url: URL) -> Bool {
-        guard let attrs1 = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size1 = attrs1[.size] as? Int else { return false }
-        Thread.sleep(forTimeInterval: 0.2)
-        guard let attrs2 = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size2 = attrs2[.size] as? Int else { return false }
-        return size1 != size2
     }
 }

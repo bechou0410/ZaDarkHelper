@@ -71,26 +71,34 @@ enum ZaloRepairer {
         return true
     }
 
-    /// Re-sign Zalo.app with adhoc identity + hardened runtime flag.
+    /// Re-sign Zalo.app with adhoc identity + hardened runtime + Electron
+    /// entitlements injected from a bundled plist.
     ///
-    /// `codesign --force --deep --sign - --options=runtime`
+    /// `codesign --force --deep --sign - --options=runtime --entitlements <plist>`
     ///
     /// - `--force`: overwrite existing signature
-    /// - `--deep`: include nested helper apps (Renderer/GPU/Plugin)
+    /// - `--deep`: include nested helper apps (Renderer/GPU/Plugin) + Frameworks
     /// - `--sign -`: adhoc (no developer cert needed)
-    /// - `--options=runtime`: preserve hardened-runtime flag from VNG's
-    ///   original codesign — without this, launchd refuses to spawn the
-    ///   adhoc-signed bundle (RBSRequestErrorDomain "Launch failed").
+    /// - `--options=runtime`: preserve hardened-runtime flag
+    /// - `--entitlements`: critical — without explicit entitlements the
+    ///   adhoc resign STRIPS VNG's original entitlements. Hardened-runtime +
+    ///   library-validation enforcement then crashes Electron with
+    ///   "Library not loaded ... different Team IDs". Bundled
+    ///   `zalo-entitlements.plist` includes `disable-library-validation` +
+    ///   JIT permissions so the patched bundle launches cleanly.
     static func adhocResign(
         shell: ShellRunning = ShellRunner(),
         onLine: (@Sendable (ShellLine) -> Void)? = nil
     ) async throws {
+        let entitlementsPath = try writeBundledEntitlements()
+
         let result = try await shell.run(
             "/usr/bin/codesign",
             args: [
                 "--force", "--deep",
                 "--sign", "-",
                 "--options=runtime",
+                "--entitlements", entitlementsPath,
                 ZaloVersionProbe.bundlePath
             ],
             env: nil,
@@ -99,6 +107,23 @@ enum ZaloRepairer {
         guard result.ok else {
             throw RepairError.codesignFailed(stderr: result.stderr, exit: result.exitCode)
         }
+    }
+
+    /// Copy the bundled `zalo-entitlements.plist` to a stable temp path so
+    /// codesign can read it. Returns the path for use as `--entitlements` arg.
+    private static func writeBundledEntitlements() throws -> String {
+        guard let bundleURL = Bundle.main.url(forResource: "zalo-entitlements",
+                                              withExtension: "plist") else {
+            throw RepairError.codesignFailed(
+                stderr: "Bundled zalo-entitlements.plist not found in helper",
+                exit: -1
+            )
+        }
+        let dest = "/tmp/zadark-helper-zalo-entitlements.plist"
+        try? FileManager.default.removeItem(atPath: dest)
+        try FileManager.default.copyItem(at: bundleURL,
+                                         to: URL(fileURLWithPath: dest))
+        return dest
     }
 
     /// Lightweight verify — used by HealthChecker. Returns true if codesign
